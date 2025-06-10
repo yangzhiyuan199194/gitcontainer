@@ -1,3 +1,5 @@
+![Gitcontainer](docs/image.png)
+
 # Gitcontainer 🐳
 
 **Turn any GitHub repository into a production-ready Docker container with AI-powered Dockerfile generation.**
@@ -54,33 +56,6 @@ Gitcontainer is an AI-powered web application that automatically generates produ
 5. **Open your browser:**
    Navigate to `http://localhost:8000`
 
-## 🐳 Docker Deployment
-
-### Build and run with Docker:
-
-```bash
-# Build the image
-docker build -t gitcontainer .
-
-# Run the container
-docker run -p 8000:8000 -e OPENAI_API_KEY=your_api_key gitcontainer
-```
-
-### Using docker-compose:
-
-```yaml
-version: '3.8'
-services:
-  gitcontainer:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - OPENAI_API_KEY=your_openai_api_key_here
-    volumes:
-      - ./repos:/app/repos  # Persist cloned repositories
-```
-
 ## 🛠️ How It Works
 
 1. **Repository Cloning**: Gitcontainer clones the GitHub repository locally using Git
@@ -112,27 +87,7 @@ cyclotruc-gitcontainer/
     └── gitingest.py        # Repository analysis
 ```
 
-## 🔧 API Reference
-
-### WebSocket Streaming
-
-Connect to `/ws/{session_id}` for real-time generation updates:
-
-```javascript
-const ws = new WebSocket('ws://localhost:8000/ws/session_123');
-ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    console.log(data.type, data.content);
-};
-```
-
-### Health Check
-
-```bash
-curl http://localhost:8000/health
-```
-
-## 🎛️ Configuration
+## 🔧 Configuration
 
 ### Environment Variables
 
@@ -171,36 +126,6 @@ result = asyncio.run(generate_dockerfile("https://github.com/user/repo"))
 print(result['dockerfile'])
 ```
 
-## 🤝 Contributing
-
-We welcome contributions! Here's how to get started:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes and test them
-4. Commit with clear messages: `git commit -m "Add feature X"`
-5. Push to your fork: `git push origin feature-name`
-6. Open a Pull Request
-
-### Development Setup
-
-```bash
-# Install development dependencies
-pip install -r requirements.txt
-
-# Run with auto-reload
-uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-```
-
-## 🧪 Testing
-
-Test with example repositories:
-
-- **Simple Python app**: `https://github.com/cyclotruc/gitingest`
-- **This project**: `https://github.com/cyclotruc/gitcontainer`
-- **Complex Node.js app**: Any Express.js repository
-- **Multi-service app**: Repositories with multiple services
-
 ## 🎨 Customization
 
 ### Adding Custom Instructions
@@ -211,46 +136,6 @@ Use the "Additional instructions" feature to customize generation:
 - `"Include Redis and PostgreSQL"`
 - `"Optimize for production deployment"`
 - `"Add development tools for debugging"`
-
-### Extending Technology Support
-
-Add new technology detection in `tools/create_container.py`:
-
-```python
-# Add your technology patterns to the AI prompt
-technology_patterns = {
-    "rust": ["Cargo.toml", "src/main.rs"],
-    "ruby": ["Gemfile", "app.rb", "config.ru"],
-    # Add more...
-}
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**"OPENAI_API_KEY not found"**
-- Ensure your `.env` file contains the API key
-- Check that the environment variable is properly set
-
-**"Failed to clone repository"**
-- Verify the GitHub URL is correct and public
-- Check your internet connection
-- Ensure Git is installed on your system
-
-**"Generation timeout"**
-- Large repositories may take longer to process
-- Check your OpenAI API quota and limits
-
-**Monaco Editor not loading**
-- Ensure you have internet connection for CDN resources
-- Check browser console for JavaScript errors
-
-### Performance Tips
-
-- **Large repositories**: Consider adding `.gitignore` patterns to exclude large files
-- **Private repositories**: Currently only public GitHub repositories are supported
-- **API limits**: Monitor your OpenAI API usage to avoid rate limits
 
 ## 📝 License
 
