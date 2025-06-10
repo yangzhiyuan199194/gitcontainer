@@ -579,12 +579,14 @@
         // Copy functions for Monaco editors
         function copyDockerfile() {
             const content = dockerfileEditor ? dockerfileEditor.getValue() : '';
-            copyToClipboard(content, 'Dockerfile copied!');
+            const button = event.target.closest('button');
+            copyToClipboard(content, 'Dockerfile copied!', button);
         }
 
         function copyCompose() {
             const content = composeEditor ? composeEditor.getValue() : '';
-            copyToClipboard(content, 'Compose file copied!');
+            const button = event.target.closest('button');
+            copyToClipboard(content, 'Compose file copied!', button);
         }
 
         // WebSocket streaming functionality
@@ -808,20 +810,17 @@
         {% endif %}
 
         // Copy to clipboard functionality
-        async function copyToClipboard(text, successMessage) {
+        async function copyToClipboard(text, successMessage, targetButton) {
             try {
                 await navigator.clipboard.writeText(text);
-                // Show success feedback
-                const buttons = document.querySelectorAll('button');
-                buttons.forEach(btn => {
-                    if (btn.textContent.includes('Copy')) {
-                        const originalText = btn.innerHTML;
-                        btn.innerHTML = '✓ ' + (successMessage || 'Copied!');
-                        setTimeout(() => {
-                            btn.innerHTML = originalText;
-                        }, 2000);
-                    }
-                });
+                // Show success feedback only on the specific button
+                if (targetButton) {
+                    const originalText = targetButton.innerHTML;
+                    targetButton.innerHTML = '✓ ' + (successMessage || 'Copied!');
+                    setTimeout(() => {
+                        targetButton.innerHTML = originalText;
+                    }, 2000);
+                }
             } catch (err) {
                 console.error('Failed to copy: ', err);
             }
