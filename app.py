@@ -3,7 +3,7 @@
 import asyncio
 import json
 from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -22,6 +22,30 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Store for session data
 sessions = {}
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve the main favicon."""
+    return FileResponse("static/icons8-docker-doodle-32.png")
+
+
+@app.get("/favicon-16x16.png")
+async def favicon_16():
+    """Serve 16x16 favicon."""
+    return FileResponse("static/icons8-docker-doodle-16.png")
+
+
+@app.get("/favicon-32x32.png") 
+async def favicon_32():
+    """Serve 32x32 favicon."""
+    return FileResponse("static/icons8-docker-doodle-32.png")
+
+
+@app.get("/apple-touch-icon.png")
+async def apple_touch_icon():
+    """Serve Apple touch icon (120x120 is close to the 180x180 standard)."""
+    return FileResponse("static/icons8-docker-doodle-120.png")
 
 
 @app.get("/", response_class=HTMLResponse)
