@@ -7,60 +7,48 @@ from tools import gitingest_tool, clone_repo_tool
 load_dotenv()
 
 
-async def demo_gitingest_tool():
-    """Demonstrate the gitingest tool functionality."""
+async def demo_combined_workflow():
+    """Demonstrate the combined workflow: clone repository then analyze with gitingest."""
     
-    print("Demo 1: GitHub Repository Analysis (Gitingest)")
-    print("-" * 50)
-    
-    # Example repository URL (you can change this)
-    repo_url = "https://github.com/fastapi/fastapi"
-    
-    print(f"Analyzing repository: {repo_url}")
-    print("This may take a moment...")
-    
-    try:
-        result = await gitingest_tool(repo_url)
-        
-        if result["success"]:
-            print("\n✅ Analysis successful!")
-            print(f"Summary:\n{result['summary'][:500]}...")  # Show first 500 chars
-            print(f"\nDirectory structure preview:\n{result['tree'][:1000]}...")  # Show first 1000 chars
-            print(f"Content length: {len(result['content'])} characters")
-        else:
-            print(f"\n❌ Analysis failed: {result['error']}")
-            
-    except Exception as e:
-        print(f"\n❌ Error during analysis: {e}")
-
-
-async def demo_git_operations():
-    """Demonstrate the git operations tool functionality."""
-    
-    print("\n\nDemo 2: GitHub Repository Cloning (Git Operations)")
-    print("-" * 50)
+    print("Combined Demo: Clone Repository + Gitingest Analysis")
+    print("=" * 55)
     
     # Example repository URL (smaller repo for demo)
     repo_url = "https://github.com/octocat/Hello-World"
     
-    print(f"Cloning repository: {repo_url}")
+    print(f"Step 1: Cloning repository: {repo_url}")
     print("This may take a moment...")
     
     try:
-        result = await clone_repo_tool(repo_url)
+        # First, clone the repository
+        clone_result = await clone_repo_tool(repo_url)
         
-        if result["success"]:
-            print("\n✅ Clone successful!")
-            print(f"Repository: {result['repo_name']}")
-            print(f"Local path: {result['local_path']}")
-            print(f"Size: {result['repo_size_mb']} MB")
-            print(f"Files: {result['file_count']} files")
-            print(f"Message: {result['message']}")
+        if not clone_result["success"]:
+            print(f"\n❌ Clone failed: {clone_result['error']}")
+            return
+            
+        print("\n✅ Clone successful!")
+        print(f"Repository: {clone_result['repo_name']}")
+        print(f"Local path: {clone_result['local_path']}")
+        print(f"Size: {clone_result['repo_size_mb']} MB")
+        print(f"Files: {clone_result['file_count']} files")
+        
+        # Now analyze the cloned repository with gitingest
+        print(f"\nStep 2: Analyzing cloned repository at: {clone_result['local_path']}")
+        print("This may take a moment...")
+        
+        ingest_result = await gitingest_tool(clone_result['local_path'])
+        
+        if ingest_result["success"]:
+            print("\n✅ Analysis successful!")
+            print(f"Summary:\n{ingest_result['summary'][:500]}...")  # Show first 500 chars
+            print(f"\nDirectory structure preview:\n{ingest_result['tree'][:1000]}...")  # Show first 1000 chars
+            print(f"Content length: {len(ingest_result['content'])} characters")
         else:
-            print(f"\n❌ Clone failed: {result['error']}")
+            print(f"\n❌ Analysis failed: {ingest_result['error']}")
             
     except Exception as e:
-        print(f"\n❌ Error during clone: {e}")
+        print(f"\n❌ Error during workflow: {e}")
 
 
 if __name__ == "__main__":
@@ -68,12 +56,5 @@ if __name__ == "__main__":
     print("=" * 20)
     print()
     
-    async def run_demos():
-        # Demo gitingest tool
-        await demo_gitingest_tool()
-        
-        # Demo git operations tool
-        await demo_git_operations()
-    
-    # Run all demos
-    asyncio.run(run_demos()) 
+    # Run the combined workflow demo
+    asyncio.run(demo_combined_workflow()) 
