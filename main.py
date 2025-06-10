@@ -1,80 +1,43 @@
 import os
+import asyncio
 from dotenv import load_dotenv
-from agents import Agent, Runner
+from tools import gitingest_tool
+
 # Load environment variables from .env file
 load_dotenv()
 
 
-def main():
-    """Main function demonstrating OpenAI Agents SDK usage."""
+async def demo_gitingest_tool():
+    """Demonstrate the gitingest tool functionality."""
     
-    # Check if OpenAI API key is set
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Error: Please set your OPENAI_API_KEY environment variable")
-        print("Example: export OPENAI_API_KEY=sk-...")
-        return
-    
-    # Create a basic agent
-    agent = Agent(
-        name="Assistant",
-        instructions="You are a helpful assistant that provides clear and concise answers."
-    )
-    
-    # Example 1: Simple query
-    print("Example 1: Simple query")
-    print("-" * 40)
-    result = Runner.run_sync(agent, "Write a haiku about recursion in programming.")
-    print(f"Response: {result.final_output}")
-    print()
-    
-    # Example 2: Interactive conversation
-    print("Example 2: Interactive conversation")
+    print("Demo: GitHub Repository Analysis")
     print("-" * 40)
     
-    # You can ask multiple questions
-    questions = [
-        "What is the capital of France?",
-        "Explain what Python is in one sentence.",
-        "Give me a fun fact about computers."
-    ]
+    # Example repository URL (you can change this)
+    repo_url = "https://github.com/fastapi/fastapi"
     
-    for i, question in enumerate(questions, 1):
-        print(f"Question {i}: {question}")
-        result = Runner.run_sync(agent, question)
-        print(f"Answer: {result.final_output}")
-        print()
-
-
-def create_specialized_agent():
-    """Example of creating a specialized agent with specific instructions."""
+    print(f"Analyzing repository: {repo_url}")
+    print("This may take a moment...")
     
-    code_agent = Agent(
-        name="CodeAssistant",
-        instructions="""You are a Python programming expert. 
-        Provide clear, well-commented code examples and explanations.
-        Always include best practices and explain your reasoning."""
-    )
-    
-    # Example usage of specialized agent
-    query = "Show me how to read a CSV file in Python"
-    result = Runner.run_sync(code_agent, query)
-    print("Specialized Agent Example:")
-    print("-" * 40)
-    print(f"Query: {query}")
-    print(f"Response: {result.final_output}")
-    print()
+    try:
+        result = await gitingest_tool(repo_url)
+        
+        if result["success"]:
+            print("\n✅ Analysis successful!")
+            print(f"Summary:\n{result['summary'][:500]}...")  # Show first 500 chars
+            print(f"\nDirectory structure preview:\n{result['tree'][:1000]}...")  # Show first 1000 chars
+            print(f"Content length: {len(result['content'])} characters")
+        else:
+            print(f"\n❌ Analysis failed: {result['error']}")
+            
+    except Exception as e:
+        print(f"\n❌ Error during analysis: {e}")
 
 
 if __name__ == "__main__":
-    print("OpenAI Agents SDK Boilerplate")
-    print("=" * 50)
+    print("Gitingest Tool Demo")
+    print("=" * 20)
     print()
     
-    # Run main examples
-    main()
-    
-    # Run specialized agent example
-    create_specialized_agent()
-    
-    print("Done! Check out the OpenAI Agents SDK documentation for more features:")
-    print("https://openai.github.io/openai-agents-python/") 
+    # Run the gitingest demo
+    asyncio.run(demo_gitingest_tool()) 
