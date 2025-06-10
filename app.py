@@ -1,8 +1,9 @@
 """Minimal FastAPI app for GitHub URL to Dockerfile generator."""
 
 import asyncio
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse
+import json
+from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -19,6 +20,9 @@ static_dir = Path("static")
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# Store for session data
+sessions = {}
+
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -27,6 +31,7 @@ async def home(request: Request):
         "request": request,
         "repo_url": "",
         "loading": False,
+        "streaming": False,
         "result": None,
         "error": None
     })
@@ -34,53 +39,91 @@ async def home(request: Request):
 
 @app.post("/", response_class=HTMLResponse) 
 async def generate_dockerfile(request: Request, repo_url: str = Form(...)):
-    """Process GitHub URL and generate Dockerfile."""
+    """Redirect to streaming page for Dockerfile generation."""
+    # Store the repo URL in a session (simple in-memory for demo)
+    session_id = str(hash(repo_url + str(asyncio.get_event_loop().time())))
+    sessions[session_id] = {"repo_url": repo_url, "status": "pending"}
     
-    # Initial response with loading state
-    context = {
+    # Redirect to streaming page
+    return templates.TemplateResponse("index.html", {
         "request": request,
         "repo_url": repo_url,
-        "loading": True,
+        "loading": False,
+        "streaming": True,
+        "session_id": session_id,
         "result": None,
         "error": None
-    }
+    })
+
+
+@app.websocket("/ws/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    """WebSocket endpoint for streaming Dockerfile generation."""
+    await websocket.accept()
     
     try:
+        if session_id not in sessions:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "content": "Invalid session ID"
+            }))
+            return
+        
+        repo_url = sessions[session_id]["repo_url"]
+        
         # Step 1: Clone repository
-        print(f"Cloning repository: {repo_url}")
+        await websocket.send_text(json.dumps({
+            "type": "status",
+            "content": f"🔄 Cloning repository: {repo_url}"
+        }))
+        
         clone_result = await clone_repo_tool(repo_url)
         
         if not clone_result["success"]:
-            context["loading"] = False
-            context["error"] = f"Failed to clone repository: {clone_result['error']}"
-            return templates.TemplateResponse("index.html", context)
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "content": f"Failed to clone repository: {clone_result['error']}"
+            }))
+            return
         
         # Step 2: Analyze with gitingest
-        print(f"Analyzing repository...")
+        await websocket.send_text(json.dumps({
+            "type": "status",
+            "content": "📊 Analyzing repository structure..."
+        }))
+        
         ingest_result = await gitingest_tool(clone_result['local_path'])
         
         if not ingest_result["success"]:
-            context["loading"] = False
-            context["error"] = f"Failed to analyze repository: {ingest_result['error']}"
-            return templates.TemplateResponse("index.html", context)
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "content": f"Failed to analyze repository: {ingest_result['error']}"
+            }))
+            return
         
-        # Step 3: Generate Dockerfile
-        print(f"Generating Dockerfile...")
+        # Step 3: Generate Dockerfile with streaming
+        await websocket.send_text(json.dumps({
+            "type": "status",
+            "content": "🐳 Generating Dockerfile with AI..."
+        }))
+        
         container_result = await create_container_tool(
             gitingest_summary=ingest_result['summary'],
             gitingest_tree=ingest_result['tree'], 
             gitingest_content=ingest_result['content'],
-            project_name=clone_result['repo_name']
+            project_name=clone_result['repo_name'],
+            websocket=websocket  # Pass WebSocket for streaming
         )
         
         if not container_result["success"]:
-            context["loading"] = False
-            context["error"] = f"Failed to generate Dockerfile: {container_result['error']}"
-            return templates.TemplateResponse("index.html", context)
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "content": f"Failed to generate Dockerfile: {container_result['error']}"
+            }))
+            return
         
-        # Success! Prepare result
-        context["loading"] = False
-        context["result"] = {
+        # Send final result
+        final_result = {
             "project_name": container_result['project_name'],
             "technology_stack": container_result['technology_stack'],
             "dockerfile": container_result['dockerfile'],
@@ -94,11 +137,23 @@ async def generate_dockerfile(request: Request, repo_url: str = Form(...)):
             }
         }
         
+        await websocket.send_text(json.dumps({
+            "type": "complete",
+            "content": "Generation complete!",
+            "result": final_result
+        }))
+        
+        # Store result in session for potential refresh
+        sessions[session_id]["result"] = final_result
+        sessions[session_id]["status"] = "complete"
+        
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected for session {session_id}")
     except Exception as e:
-        context["loading"] = False
-        context["error"] = f"Unexpected error: {str(e)}"
-    
-    return templates.TemplateResponse("index.html", context)
+        await websocket.send_text(json.dumps({
+            "type": "error",
+            "content": f"Unexpected error: {str(e)}"
+        }))
 
 
 @app.get("/health")

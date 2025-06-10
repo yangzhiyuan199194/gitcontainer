@@ -1,6 +1,7 @@
 import asyncio
 import os
-from typing import Dict, Any, Optional
+import json
+from typing import Dict, Any, Optional, Union
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 
@@ -13,7 +14,8 @@ async def create_container_tool(
     gitingest_tree: str,
     gitingest_content: str,
     project_name: Optional[str] = None,
-    max_context_chars: int = 50000  # Limit to stay within context window
+    max_context_chars: int = 50000,  # Limit to stay within context window
+    websocket: Optional[Any] = None  # WebSocket connection for streaming
 ) -> Dict[str, Any]:
     """
     Generate a Dockerfile using OpenAI API based on gitingest context.
@@ -24,6 +26,7 @@ async def create_container_tool(
         gitingest_content (str): Full content from gitingest
         project_name (str, optional): Name of the project for the container
         max_context_chars (int): Maximum characters to send in context
+        websocket (Any, optional): WebSocket connection for streaming
         
     Returns:
         Dict[str, Any]: Dictionary containing the generated Dockerfile and metadata
@@ -74,9 +77,12 @@ Respond with a JSON object containing:
 - "docker_compose_suggestion": Optional docker-compose.yml content if multiple services detected
 """
 
-        # Make API call to generate Dockerfile
+        # Make API call to generate Dockerfile with streaming
+        await _emit_ws_message(websocket, "status", "🐳 Generating Dockerfile...")
+        print("🐳 Generating Dockerfile... (streaming response)\n")
+        
         response = await client.chat.completions.create(
-            model="gpt-4",  # Using GPT-4 for better code generation
+            model="gpt-4o-mini",  # Using GPT-4 for better code generation
             messages=[
                 {
                     "role": "system",
@@ -88,15 +94,30 @@ Respond with a JSON object containing:
                 }
             ],
             temperature=0.3,  # Lower temperature for more consistent output
-            max_tokens=2000   # Sufficient for Dockerfile generation
+            max_tokens=2000,   # Sufficient for Dockerfile generation
+            stream=True       # Enable streaming
         )
         
-        # Parse the response
-        dockerfile_response = response.choices[0].message.content
+        # Collect the streaming response and print in real-time
+        dockerfile_response = ""
+        await _emit_ws_message(websocket, "stream_start", "Starting generation...")
+        print("📝 Response:")
+        print("-" * 50)
+        
+        async for chunk in response:
+            if chunk.choices[0].delta.content is not None:
+                content = chunk.choices[0].delta.content
+                print(content, end="", flush=True)
+                dockerfile_response += content
+                # Emit each chunk to WebSocket clients
+                await _emit_ws_message(websocket, "chunk", content)
+        
+        print("\n" + "-" * 50)
+        print("✅ Generation complete!\n")
+        await _emit_ws_message(websocket, "status", "✅ Generation complete!")
         
         # Try to parse as JSON, fallback to plain text if needed
         try:
-            import json
             dockerfile_data = json.loads(dockerfile_response)
         except json.JSONDecodeError:
             # If not valid JSON, treat as plain Dockerfile content
@@ -124,18 +145,35 @@ Respond with a JSON object containing:
         }
         
     except Exception as e:
-        return {
+        error_result = {
             "success": False,
             "error": str(e),
             "project_name": project_name or "unknown-project"
         }
+        await _emit_ws_message(websocket, "error", str(e))
+        return error_result
+
+
+async def _emit_ws_message(websocket: Optional[Any], message_type: str, content: str) -> None:
+    """Helper function to emit WebSocket messages safely."""
+    if websocket is not None:
+        try:
+            message = {
+                "type": message_type,
+                "content": content,
+                "timestamp": asyncio.get_event_loop().time()
+            }
+            await websocket.send_text(json.dumps(message))
+        except Exception as e:
+            print(f"WebSocket error: {e}")
 
 
 def run_create_container(
     gitingest_summary: str,
     gitingest_tree: str,
     gitingest_content: str,
-    project_name: Optional[str] = None
+    project_name: Optional[str] = None,
+    websocket: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     Synchronous wrapper for the create_container tool.
@@ -145,12 +183,13 @@ def run_create_container(
         gitingest_tree (str): Directory tree from gitingest
         gitingest_content (str): Full content from gitingest
         project_name (str, optional): Name of the project
+        websocket (Any, optional): WebSocket connection for streaming
         
     Returns:
         Dict[str, Any]: Dictionary containing generated Dockerfile and metadata
     """
     return asyncio.run(create_container_tool(
-        gitingest_summary, gitingest_tree, gitingest_content, project_name
+        gitingest_summary, gitingest_tree, gitingest_content, project_name, websocket=websocket
     ))
 
 

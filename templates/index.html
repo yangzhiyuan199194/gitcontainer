@@ -95,7 +95,72 @@
         </div>
         {% endif %}
 
-        <!-- Results -->
+        <!-- Streaming State -->
+        {% if streaming %}
+        <div id="streaming-container" class="relative">
+            <div class="w-full h-full absolute inset-0 bg-gray-900 rounded-xl translate-y-2 translate-x-2"></div>
+            <div class="bg-[#fafafa] rounded-xl border-[3px] border-gray-900 p-8 relative z-20">
+                
+                <!-- Status Display -->
+                <div class="text-center mb-8">
+                    <div class="loader mx-auto mb-4"></div>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-2">Generating Your Dockerfile</h2>
+                    <p id="status-message" class="text-lg text-gray-600">Connecting...</p>
+                </div>
+
+                <!-- Streaming Response Box -->
+                <div class="relative mb-6">
+                    <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>
+                    <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-6 relative z-10">
+                        <h3 class="text-lg font-bold text-gray-900 mb-4">Live AI Response:</h3>
+                        <div 
+                            id="streaming-content" 
+                            class="min-h-[300px] max-h-[500px] overflow-y-auto bg-white border-[2px] border-gray-300 rounded p-4 font-mono text-sm whitespace-pre-wrap"
+                        ></div>
+                    </div>
+                </div>
+
+                <!-- Progress Steps -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div id="step-clone" class="bg-[#fff4da] border-[3px] border-gray-300 rounded p-4 transition-all duration-300">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-full border-[3px] border-gray-300 flex items-center justify-center mr-3">
+                                <span class="text-sm font-bold">1</span>
+                            </div>
+                            <span class="font-medium">Clone Repository</span>
+                        </div>
+                    </div>
+                    <div id="step-analyze" class="bg-[#fff4da] border-[3px] border-gray-300 rounded p-4 transition-all duration-300">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-full border-[3px] border-gray-300 flex items-center justify-center mr-3">
+                                <span class="text-sm font-bold">2</span>
+                            </div>
+                            <span class="font-medium">Analyze Structure</span>
+                        </div>
+                    </div>
+                    <div id="step-generate" class="bg-[#fff4da] border-[3px] border-gray-300 rounded p-4 transition-all duration-300">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-full border-[3px] border-gray-300 flex items-center justify-center mr-3">
+                                <span class="text-sm font-bold">3</span>
+                            </div>
+                            <span class="font-medium">Generate Dockerfile</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Results Container (hidden initially) -->
+        <div id="results-container" class="relative hidden">
+            <div class="w-full h-full absolute inset-0 bg-gray-900 rounded-xl translate-y-2 translate-x-2"></div>
+            <div class="bg-[#fafafa] rounded-xl border-[3px] border-gray-900 p-6 relative z-20 space-y-6">
+                <!-- Results content will be populated by JavaScript -->
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Results (for non-streaming requests) -->
         {% if result %}
         <div class="relative">
             <div class="w-full h-full absolute inset-0 bg-gray-900 rounded-xl translate-y-2 translate-x-2"></div>
@@ -211,6 +276,208 @@
     </footer>
 
     <script>
+        // WebSocket streaming functionality
+        {% if streaming %}
+        const sessionId = "{{ session_id }}";
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/${sessionId}`;
+        
+        let ws;
+        let streamingContent = '';
+        let currentStep = 'clone';
+        
+        function connectWebSocket() {
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function(event) {
+                console.log('WebSocket connected');
+                updateStatus('🔗 Connected! Starting generation...');
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                console.log('Received:', data);
+                
+                switch(data.type) {
+                    case 'status':
+                        updateStatus(data.content);
+                        updateStepProgress(data.content);
+                        break;
+                    case 'stream_start':
+                        updateStatus('🤖 AI is generating response...');
+                        highlightStep('generate');
+                        break;
+                    case 'chunk':
+                        streamingContent += data.content;
+                        updateStreamingContent(streamingContent);
+                        break;
+                    case 'complete':
+                        updateStatus('✅ Generation complete!');
+                        showResults(data.result);
+                        break;
+                    case 'error':
+                        updateStatus('❌ Error: ' + data.content);
+                        showError(data.content);
+                        break;
+                }
+            };
+            
+            ws.onclose = function(event) {
+                console.log('WebSocket closed');
+                if (event.code !== 1000) { // 1000 is normal closure
+                    updateStatus('❌ Connection lost. Please refresh and try again.');
+                }
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                updateStatus('❌ Connection error. Please refresh and try again.');
+            };
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('status-message').textContent = message;
+        }
+        
+        function updateStepProgress(message) {
+            if (message.includes('Cloning') || message.includes('🔄')) {
+                highlightStep('clone');
+            } else if (message.includes('Analyzing') || message.includes('📊')) {
+                completeStep('clone');
+                highlightStep('analyze');
+            } else if (message.includes('Generating') || message.includes('🐳')) {
+                completeStep('analyze');
+                highlightStep('generate');
+            }
+        }
+        
+        function highlightStep(step) {
+            const stepElement = document.getElementById(`step-${step}`);
+            stepElement.className = stepElement.className.replace('border-gray-300', 'border-yellow-500 bg-yellow-50');
+        }
+        
+        function completeStep(step) {
+            const stepElement = document.getElementById(`step-${step}`);
+            stepElement.className = stepElement.className.replace('border-gray-300', 'border-green-500 bg-green-50');
+            stepElement.className = stepElement.className.replace('border-yellow-500 bg-yellow-50', 'border-green-500 bg-green-50');
+        }
+        
+        function updateStreamingContent(content) {
+            const contentDiv = document.getElementById('streaming-content');
+            contentDiv.textContent = content;
+            contentDiv.scrollTop = contentDiv.scrollHeight;
+        }
+        
+        function showResults(result) {
+            completeStep('generate');
+            
+            // Hide streaming container
+            document.getElementById('streaming-container').style.display = 'none';
+            
+            // Show results container
+            const resultsContainer = document.getElementById('results-container');
+            resultsContainer.classList.remove('hidden');
+            
+            // Populate results
+            resultsContainer.innerHTML = generateResultsHTML(result);
+        }
+        
+        function showError(error) {
+            const contentDiv = document.getElementById('streaming-content');
+            contentDiv.innerHTML = `<div class="text-red-600 font-bold">Error: ${error}</div>`;
+        }
+        
+        function generateResultsHTML(result) {
+            let html = '<div class="space-y-6">';
+            
+            // Project Info
+            html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">';
+            html += '<div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">';
+            html += '<h3 class="font-bold text-gray-900">Project</h3>';
+            html += '<p class="text-sm">' + result.project_name + '</p>';
+            html += '</div>';
+            html += '<div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">';
+            html += '<h3 class="font-bold text-gray-900">Technology Stack</h3>';
+            html += '<p class="text-sm">' + result.technology_stack + '</p>';
+            html += '</div>';
+            html += '<div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">';
+            html += '<h3 class="font-bold text-gray-900">Repository Size</h3>';
+            html += '<p class="text-sm">' + result.repo_info.file_count + ' files (' + result.repo_info.size_mb + ' MB)</p>';
+            html += '</div>';
+            html += '</div>';
+
+            // Dockerfile
+            html += '<div>';
+            html += '<div class="flex justify-between items-center mb-4">';
+            html += '<h3 class="text-xl font-bold text-gray-900">Generated Dockerfile</h3>';
+            html += '<div class="relative group">';
+            html += '<div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>';
+            html += '<button onclick="copyToClipboard(\'dockerfile-content-stream\')" class="px-4 py-2 bg-[#ffc480] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2">';
+            html += '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>';
+            html += 'Copy Dockerfile';
+            html += '</button>';
+            html += '</div>';
+            html += '</div>';
+            html += '<div class="relative">';
+            html += '<div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>';
+            html += '<textarea id="dockerfile-content-stream" class="w-full p-4 bg-[#fff4da] border-[3px] border-gray-900 rounded font-mono text-sm focus:outline-none relative z-10 h-96" readonly>' + result.dockerfile + '</textarea>';
+            html += '</div>';
+            html += '</div>';
+
+            // Docker Compose (if available)
+            if (result.docker_compose) {
+                html += '<div>';
+                html += '<div class="flex justify-between items-center mb-4">';
+                html += '<h3 class="text-xl font-bold text-gray-900">Suggested docker-compose.yml</h3>';
+                html += '<div class="relative group">';
+                html += '<div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>';
+                html += '<button onclick="copyToClipboard(\'docker-compose-content-stream\')" class="px-4 py-2 bg-[#ffc480] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2">';
+                html += '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>';
+                html += 'Copy Compose';
+                html += '</button>';
+                html += '</div>';
+                html += '</div>';
+                html += '<div class="relative">';
+                html += '<div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>';
+                html += '<textarea id="docker-compose-content-stream" class="w-full p-4 bg-[#fff4da] border-[3px] border-gray-900 rounded font-mono text-sm focus:outline-none relative z-10 h-48" readonly>' + result.docker_compose + '</textarea>';
+                html += '</div>';
+                html += '</div>';
+            }
+
+            // Reasoning & Notes
+            if (result.reasoning || result.additional_notes) {
+                html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">';
+                
+                if (result.reasoning) {
+                    html += '<div>';
+                    html += '<h3 class="text-lg font-bold text-gray-900 mb-2">Base Image Reasoning</h3>';
+                    html += '<div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">';
+                    html += '<p class="text-sm">' + result.reasoning + '</p>';
+                    html += '</div>';
+                    html += '</div>';
+                }
+                
+                if (result.additional_notes) {
+                    html += '<div>';
+                    html += '<h3 class="text-lg font-bold text-gray-900 mb-2">Additional Notes</h3>';
+                    html += '<div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">';
+                    html += '<p class="text-sm whitespace-pre-wrap">' + result.additional_notes + '</p>';
+                    html += '</div>';
+                    html += '</div>';
+                }
+                
+                html += '</div>';
+            }
+
+            html += '</div>';
+            return html;
+        }
+        
+        // Connect when page loads
+        connectWebSocket();
+        {% endif %}
+
+        // Copy to clipboard functionality
         async function copyToClipboard(elementId) {
             const element = document.getElementById(elementId);
             const text = element.value || element.textContent;
