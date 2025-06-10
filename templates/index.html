@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub to Dockerfile Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loader {
+            border: 8px solid #fff4da;
+            border-top: 8px solid #ffc480;
+            border-radius: 50%;
+            width: 64px;
+            height: 64px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-[#FFFDF8] min-h-screen">
+    <!-- Header -->
+    <header class="border-b-[3px] border-gray-900">
+        <div class="max-w-4xl mx-auto px-4 py-4">
+            <h1 class="text-3xl font-bold tracking-tight">
+                <span class="text-gray-900">GitHub</span>
+                <span class="text-[#FE4A60]">2</span>
+                <span class="text-[#5CF1A4]">Dockerfile</span>
+            </h1>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Hero Section -->
+        <div class="mb-8 text-center">
+            <h2 class="text-4xl md:text-6xl font-bold tracking-tighter mb-4">
+                Generate Dockerfiles
+                <br>
+                from GitHub repos
+            </h2>
+            <p class="text-gray-600 text-lg max-w-2xl mx-auto">
+                Paste any GitHub repository URL and get an AI-generated Dockerfile 
+                tailored to your project's technology stack.
+            </p>
+        </div>
+
+        <!-- Error Message -->
+        {% if error %}
+        <div class="mb-6 p-4 bg-red-50 border-[3px] border-red-500 rounded-lg text-red-700">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Input Form -->
+        <div class="relative mb-8">
+            <div class="w-full h-full absolute inset-0 bg-gray-900 rounded-xl translate-y-2 translate-x-2"></div>
+            <div class="rounded-xl relative z-20 p-8 border-[3px] border-gray-900 bg-[#fff4da]">
+                <form method="post" class="flex flex-col md:flex-row gap-4">
+                    <div class="relative flex-1">
+                        <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0 z-10"></div>
+                        <input 
+                            type="url" 
+                            name="repo_url" 
+                            value="{{ repo_url }}"
+                            placeholder="https://github.com/username/repository"
+                            required
+                            class="border-[3px] w-full relative z-20 border-gray-900 placeholder-gray-600 text-lg font-medium focus:outline-none py-3.5 px-6 rounded"
+                        >
+                    </div>
+                    <div class="relative group">
+                        <div class="w-full h-full rounded bg-gray-800 translate-y-1 translate-x-1 absolute inset-0 z-10"></div>
+                        <button 
+                            type="submit"
+                            class="py-3.5 rounded px-8 group-hover:-translate-y-px group-hover:-translate-x-px ease-out duration-300 z-20 relative w-full md:w-auto border-[3px] border-gray-900 font-medium bg-[#ffc480] tracking-wide text-lg text-gray-900"
+                        >
+                            Generate Dockerfile
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        {% if loading %}
+        <div class="relative">
+            <div class="w-full h-full absolute inset-0 bg-black rounded-xl translate-y-2 translate-x-2"></div>
+            <div class="bg-[#fafafa] rounded-xl border-[3px] border-gray-900 p-8 relative z-20 flex flex-col items-center space-y-4">
+                <div class="loader"></div>
+                <p class="text-lg font-bold text-gray-900">Analyzing repository and generating Dockerfile...</p>
+                <p class="text-sm text-gray-600">This may take a few moments</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Results -->
+        {% if result %}
+        <div class="relative">
+            <div class="w-full h-full absolute inset-0 bg-gray-900 rounded-xl translate-y-2 translate-x-2"></div>
+            <div class="bg-[#fafafa] rounded-xl border-[3px] border-gray-900 p-6 relative z-20 space-y-6">
+                
+                <!-- Project Info -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">
+                        <h3 class="font-bold text-gray-900">Project</h3>
+                        <p class="text-sm">{{ result.project_name }}</p>
+                    </div>
+                    <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">
+                        <h3 class="font-bold text-gray-900">Technology Stack</h3>
+                        <p class="text-sm">{{ result.technology_stack }}</p>
+                    </div>
+                    <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">
+                        <h3 class="font-bold text-gray-900">Repository Size</h3>
+                        <p class="text-sm">{{ result.repo_info.file_count }} files ({{ result.repo_info.size_mb }} MB)</p>
+                    </div>
+                </div>
+
+                <!-- Dockerfile -->
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-900">Generated Dockerfile</h3>
+                        <div class="relative group">
+                            <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>
+                            <button 
+                                onclick="copyToClipboard('dockerfile-content')"
+                                class="px-4 py-2 bg-[#ffc480] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                </svg>
+                                Copy Dockerfile
+                            </button>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>
+                        <textarea 
+                            id="dockerfile-content"
+                            class="w-full p-4 bg-[#fff4da] border-[3px] border-gray-900 rounded font-mono text-sm focus:outline-none relative z-10 h-96"
+                            readonly
+                        >{{ result.dockerfile }}</textarea>
+                    </div>
+                </div>
+
+                <!-- Docker Compose (if available) -->
+                {% if result.docker_compose %}
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-900">Suggested docker-compose.yml</h3>
+                        <div class="relative group">
+                            <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>
+                            <button 
+                                onclick="copyToClipboard('docker-compose-content')"
+                                class="px-4 py-2 bg-[#ffc480] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                </svg>
+                                Copy Compose
+                            </button>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>
+                        <textarea 
+                            id="docker-compose-content"
+                            class="w-full p-4 bg-[#fff4da] border-[3px] border-gray-900 rounded font-mono text-sm focus:outline-none relative z-10 h-48"
+                            readonly
+                        >{{ result.docker_compose }}</textarea>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Reasoning & Notes -->
+                {% if result.reasoning or result.additional_notes %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {% if result.reasoning %}
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900 mb-2">Base Image Reasoning</h3>
+                        <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">
+                            <p class="text-sm">{{ result.reasoning }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if result.additional_notes %}
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900 mb-2">Additional Notes</h3>
+                        <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">
+                            <p class="text-sm whitespace-pre-wrap">{{ result.additional_notes }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+        {% endif %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t-[3px] border-gray-900 mt-auto">
+        <div class="max-w-4xl mx-auto px-4 py-4 text-center">
+            <p class="text-gray-600 text-sm">
+                Generate Dockerfiles from GitHub repositories using AI
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        async function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.value || element.textContent;
+            
+            try {
+                await navigator.clipboard.writeText(text);
+                // Brief visual feedback
+                const button = event.target.closest('button');
+                const originalText = button.innerHTML;
+                button.innerHTML = '✓ Copied!';
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy: ', err);
+                // Fallback for older browsers
+                element.select();
+                document.execCommand('copy');
+            }
+        }
+    </script>
+</body>
+</html> 
