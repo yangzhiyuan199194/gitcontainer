@@ -140,13 +140,13 @@
                 </div>
 
                 <!-- Streaming Response Box -->
-                <div class="relative mb-6">
+                <div id="streaming-response-container" class="relative mb-6 hidden">
                     <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>
                     <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-6 relative z-10">
                         <h3 class="text-lg font-bold text-gray-900 mb-4">Live AI Response:</h3>
                         <div 
                             id="streaming-content" 
-                            class="min-h-[300px] max-h-[500px] overflow-y-auto bg-white border-[2px] border-gray-300 rounded p-4 font-mono text-sm whitespace-pre-wrap"
+                            class="max-h-[500px] overflow-y-auto bg-white border-[2px] border-gray-300 rounded p-4 font-mono text-sm whitespace-pre-wrap"
                         ></div>
                     </div>
                 </div>
@@ -510,10 +510,14 @@
                     case 'stream_start':
                         updateStatus('🤖 AI is generating response...');
                         highlightStep('generate');
+                        // Show the streaming response container
+                        document.getElementById('streaming-response-container').classList.remove('hidden');
                         break;
                     case 'chunk':
                         streamingContent += data.content;
                         updateStreamingContent(streamingContent);
+                        // Ensure streaming response container is visible
+                        document.getElementById('streaming-response-container').classList.remove('hidden');
                         break;
                     case 'complete':
                         updateStatus('✅ Generation complete!');
