@@ -1,7 +1,7 @@
 import os
 import asyncio
 from dotenv import load_dotenv
-from tools import gitingest_tool
+from tools import gitingest_tool, clone_repo_tool
 
 # Load environment variables from .env file
 load_dotenv()
@@ -10,8 +10,8 @@ load_dotenv()
 async def demo_gitingest_tool():
     """Demonstrate the gitingest tool functionality."""
     
-    print("Demo: GitHub Repository Analysis")
-    print("-" * 40)
+    print("Demo 1: GitHub Repository Analysis (Gitingest)")
+    print("-" * 50)
     
     # Example repository URL (you can change this)
     repo_url = "https://github.com/fastapi/fastapi"
@@ -34,10 +34,46 @@ async def demo_gitingest_tool():
         print(f"\n❌ Error during analysis: {e}")
 
 
+async def demo_git_operations():
+    """Demonstrate the git operations tool functionality."""
+    
+    print("\n\nDemo 2: GitHub Repository Cloning (Git Operations)")
+    print("-" * 50)
+    
+    # Example repository URL (smaller repo for demo)
+    repo_url = "https://github.com/octocat/Hello-World"
+    
+    print(f"Cloning repository: {repo_url}")
+    print("This may take a moment...")
+    
+    try:
+        result = await clone_repo_tool(repo_url)
+        
+        if result["success"]:
+            print("\n✅ Clone successful!")
+            print(f"Repository: {result['repo_name']}")
+            print(f"Local path: {result['local_path']}")
+            print(f"Size: {result['repo_size_mb']} MB")
+            print(f"Files: {result['file_count']} files")
+            print(f"Message: {result['message']}")
+        else:
+            print(f"\n❌ Clone failed: {result['error']}")
+            
+    except Exception as e:
+        print(f"\n❌ Error during clone: {e}")
+
+
 if __name__ == "__main__":
-    print("Gitingest Tool Demo")
+    print("GitHub Tools Demo")
     print("=" * 20)
     print()
     
-    # Run the gitingest demo
-    asyncio.run(demo_gitingest_tool()) 
+    async def run_demos():
+        # Demo gitingest tool
+        await demo_gitingest_tool()
+        
+        # Demo git operations tool
+        await demo_git_operations()
+    
+    # Run all demos
+    asyncio.run(run_demos()) 
