@@ -62,11 +62,19 @@ async def home(request: Request):
 
 
 @app.post("/", response_class=HTMLResponse) 
-async def generate_dockerfile(request: Request, repo_url: str = Form(...)):
+async def generate_dockerfile(
+    request: Request, 
+    repo_url: str = Form(...),
+    additional_instructions_hidden: str = Form("")
+):
     """Redirect to streaming page for Dockerfile generation."""
-    # Store the repo URL in a session (simple in-memory for demo)
+    # Store the repo URL and additional instructions in a session (simple in-memory for demo)
     session_id = str(hash(repo_url + str(asyncio.get_event_loop().time())))
-    sessions[session_id] = {"repo_url": repo_url, "status": "pending"}
+    sessions[session_id] = {
+        "repo_url": repo_url,
+        "additional_instructions": additional_instructions_hidden.strip() if additional_instructions_hidden else "",
+        "status": "pending"
+    }
     
     # Redirect to streaming page
     return templates.TemplateResponse("index.jinja", {
@@ -94,10 +102,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             return
         
         repo_url = sessions[session_id]["repo_url"]
+        additional_instructions = sessions[session_id].get("additional_instructions", "")
         
         # Step 1: Clone repository
         await websocket.send_text(json.dumps({
-            "type": "status",
+            "type": "status", 
             "content": f"🔄 Cloning repository: {repo_url}"
         }))
         
@@ -136,7 +145,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             gitingest_tree=ingest_result['tree'], 
             gitingest_content=ingest_result['content'],
             project_name=clone_result['repo_name'],
-            websocket=websocket  # Pass WebSocket for streaming
+            websocket=websocket,  # Pass WebSocket for streaming
+            additional_instructions=additional_instructions
         )
         
         if not container_result["success"]:
@@ -174,10 +184,21 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     except WebSocketDisconnect:
         print(f"WebSocket disconnected for session {session_id}")
     except Exception as e:
-        await websocket.send_text(json.dumps({
-            "type": "error",
-            "content": f"Unexpected error: {str(e)}"
-        }))
+        print(f"Error in WebSocket endpoint: {e}")
+        try:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "content": f"Unexpected error: {str(e)}"
+            }))
+        except Exception as send_error:
+            print(f"Could not send error message, WebSocket likely closed: {send_error}")
+    finally:
+        # Clean up session data
+        try:
+            if session_id in sessions:
+                sessions[session_id]["status"] = "disconnected"
+        except:
+            pass
 
 
 @app.get("/health")

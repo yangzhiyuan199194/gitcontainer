@@ -88,8 +88,9 @@ Required JSON format:
 }}"""
 
         # Make API call to generate Dockerfile with streaming
-        await _emit_ws_message(websocket, "status", "🐳 Generating Dockerfile...")
-        print("🐳 Generating Dockerfile... (streaming response)\n")
+        websocket_active = await _emit_ws_message(websocket, "status", "🐳 Generating Dockerfile...")
+        if websocket_active:
+            print("🐳 Generating Dockerfile... (streaming response)\n")
         
         response = await client.chat.completions.create(
             model="gpt-4o-mini",  # Using GPT-4 for better code generation
@@ -110,7 +111,8 @@ Required JSON format:
         
         # Collect the streaming response and print in real-time
         dockerfile_response = ""
-        await _emit_ws_message(websocket, "stream_start", "Starting generation...")
+        if websocket_active:
+            websocket_active = await _emit_ws_message(websocket, "stream_start", "Starting generation...")
         print("📝 Response:")
         print("-" * 50)
         
@@ -119,12 +121,14 @@ Required JSON format:
                 content = chunk.choices[0].delta.content
                 print(content, end="", flush=True)
                 dockerfile_response += content
-                # Emit each chunk to WebSocket clients
-                await _emit_ws_message(websocket, "chunk", content)
+                # Only emit chunks if WebSocket is still active
+                if websocket_active:
+                    websocket_active = await _emit_ws_message(websocket, "chunk", content)
         
         print("\n" + "-" * 50)
         print("✅ Generation complete!\n")
-        await _emit_ws_message(websocket, "status", "✅ Generation complete!")
+        if websocket_active:
+            await _emit_ws_message(websocket, "status", "✅ Generation complete!")
         
         # Try to parse as JSON, fallback to plain text if needed
         try:
@@ -197,12 +201,20 @@ Required JSON format:
             "error": str(e),
             "project_name": project_name or "unknown-project"
         }
-        await _emit_ws_message(websocket, "error", str(e))
+        # Only send error message if WebSocket might still be active
+        try:
+            await _emit_ws_message(websocket, "error", str(e))
+        except:
+            # WebSocket is definitely closed, just log the error
+            print(f"Could not send error to WebSocket: {e}")
         return error_result
 
 
-async def _emit_ws_message(websocket: Optional[Any], message_type: str, content: str) -> None:
-    """Helper function to emit WebSocket messages safely."""
+async def _emit_ws_message(websocket: Optional[Any], message_type: str, content: str) -> bool:
+    """
+    Helper function to emit WebSocket messages safely.
+    Returns True if message was sent successfully, False if WebSocket is closed or error occurred.
+    """
     if websocket is not None:
         try:
             message = {
@@ -211,8 +223,12 @@ async def _emit_ws_message(websocket: Optional[Any], message_type: str, content:
                 "timestamp": asyncio.get_event_loop().time()
             }
             await websocket.send_text(json.dumps(message))
+            return True
         except Exception as e:
-            print(f"WebSocket error: {e}")
+            # WebSocket is likely closed, stop trying to send messages
+            print(f"WebSocket closed or error occurred: {e}")
+            return False
+    return False
 
 
 def run_create_container(
