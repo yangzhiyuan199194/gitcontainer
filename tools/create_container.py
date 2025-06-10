@@ -4,6 +4,7 @@ import json
 from typing import Dict, Any, Optional, Union
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
+import re
 
 # Load environment variables
 load_dotenv()
@@ -68,14 +69,17 @@ Please generate a Dockerfile that:
 
 If you detect multiple services or a complex architecture, provide a main Dockerfile and suggest docker-compose.yml structure.
 
-Respond with a JSON object containing:
-- "dockerfile": The complete Dockerfile content
-- "base_image_reasoning": Explanation of why you chose the base image
-- "technology_stack": Detected technologies and frameworks
-- "port_recommendations": Suggested ports to expose
-- "additional_notes": Any important setup or deployment notes
-- "docker_compose_suggestion": Optional docker-compose.yml content if multiple services detected
-"""
+IMPORTANT: Respond ONLY with a valid JSON object. Do not include any markdown formatting, explanations, or code blocks. The response must be parseable JSON.
+
+Required JSON format:
+{{
+  "dockerfile": "FROM python:3.9-slim\\nWORKDIR /app\\nCOPY . .\\nRUN pip install -r requirements.txt\\nEXPOSE 8000\\nCMD [\\"python\\", \\"app.py\\"]",
+  "base_image_reasoning": "Explanation of why you chose the base image",
+  "technology_stack": "Detected technologies and frameworks",
+  "port_recommendations": ["8000", "80"],
+  "additional_notes": "Any important setup or deployment notes",
+  "docker_compose_suggestion": "Optional docker-compose.yml content if multiple services detected"
+}}"""
 
         # Make API call to generate Dockerfile with streaming
         await _emit_ws_message(websocket, "status", "🐳 Generating Dockerfile...")
@@ -86,7 +90,7 @@ Respond with a JSON object containing:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert DevOps engineer specializing in containerization. Generate production-ready Dockerfiles based on repository analysis."
+                    "content": "You are an expert DevOps engineer specializing in containerization. Generate production-ready Dockerfiles based on repository analysis. ALWAYS respond with valid JSON only - no markdown, no explanations, no code blocks. Just pure JSON that can be parsed directly."
                 },
                 {
                     "role": "user",
@@ -118,17 +122,54 @@ Respond with a JSON object containing:
         
         # Try to parse as JSON, fallback to plain text if needed
         try:
+            # First try direct JSON parsing
             dockerfile_data = json.loads(dockerfile_response)
         except json.JSONDecodeError:
-            # If not valid JSON, treat as plain Dockerfile content
-            dockerfile_data = {
-                "dockerfile": dockerfile_response,
-                "base_image_reasoning": "Generated as plain text response",
-                "technology_stack": "Could not parse detailed analysis",
-                "port_recommendations": [],
-                "additional_notes": "Response was not in expected JSON format",
-                "docker_compose_suggestion": None
-            }
+            # Try to extract JSON from markdown code blocks
+            try:
+                # Look for JSON in code blocks
+                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', dockerfile_response, re.DOTALL)
+                if json_match:
+                    dockerfile_data = json.loads(json_match.group(1))
+                else:
+                    # Try to find JSON-like content
+                    json_match = re.search(r'(\{[^{}]*"dockerfile"[^{}]*\})', dockerfile_response, re.DOTALL)
+                    if json_match:
+                        dockerfile_data = json.loads(json_match.group(1))
+                    else:
+                        raise json.JSONDecodeError("No JSON found", "", 0)
+            except (json.JSONDecodeError, AttributeError):
+                # If still no valid JSON, treat as plain Dockerfile content
+                # Try to extract just the Dockerfile if it looks like one
+                dockerfile_content = dockerfile_response
+                if 'FROM ' in dockerfile_response:
+                    # Extract lines that look like Dockerfile commands
+                    lines = dockerfile_response.split('\n')
+                    dockerfile_lines = []
+                    in_dockerfile = False
+                    for line in lines:
+                        stripped = line.strip()
+                        if stripped.startswith('FROM ') or stripped.startswith('RUN ') or stripped.startswith('COPY ') or stripped.startswith('WORKDIR ') or stripped.startswith('EXPOSE ') or stripped.startswith('CMD ') or stripped.startswith('ENTRYPOINT '):
+                            in_dockerfile = True
+                            dockerfile_lines.append(line)
+                        elif in_dockerfile and (stripped.startswith('#') or stripped == '' or stripped.startswith('ENV ') or stripped.startswith('ARG ') or stripped.startswith('USER ') or stripped.startswith('VOLUME ') or stripped.startswith('LABEL ')):
+                            dockerfile_lines.append(line)
+                        elif in_dockerfile and not stripped:
+                            dockerfile_lines.append(line)
+                        elif in_dockerfile and stripped and not any(stripped.startswith(cmd) for cmd in ['FROM', 'RUN', 'COPY', 'WORKDIR', 'EXPOSE', 'CMD', 'ENTRYPOINT', 'ENV', 'ARG', 'USER', 'VOLUME', 'LABEL', '#']):
+                            break
+                    
+                    if dockerfile_lines:
+                        dockerfile_content = '\n'.join(dockerfile_lines).strip()
+
+                dockerfile_data = {
+                    "dockerfile": dockerfile_content,
+                    "base_image_reasoning": "Generated as plain text response",
+                    "technology_stack": "Could not parse detailed analysis",
+                    "port_recommendations": [],
+                    "additional_notes": "Response was not in expected JSON format",
+                    "docker_compose_suggestion": None
+                }
         
         return {
             "success": True,
