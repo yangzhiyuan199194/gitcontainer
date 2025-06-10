@@ -27,7 +27,7 @@ sessions = {}
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Home page with the input form."""
-    return templates.TemplateResponse("index.html", {
+    return templates.TemplateResponse("index.jinja", {
         "request": request,
         "repo_url": "",
         "loading": False,
@@ -45,7 +45,7 @@ async def generate_dockerfile(request: Request, repo_url: str = Form(...)):
     sessions[session_id] = {"repo_url": repo_url, "status": "pending"}
     
     # Redirect to streaming page
-    return templates.TemplateResponse("index.html", {
+    return templates.TemplateResponse("index.jinja", {
         "request": request,
         "repo_url": repo_url,
         "loading": False,
