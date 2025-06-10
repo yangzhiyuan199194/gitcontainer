@@ -10,8 +10,18 @@
 
 Gitcontainer is an AI-powered web application that automatically generates production-ready Dockerfiles by analyzing GitHub repositories. Simply paste a GitHub URL and get a tailored Dockerfile with intelligent base image selection, dependency management, and Docker best practices.
 
+## 🌟 Quick Access
+
+Simply replace `github.com` with `gitcontainer.com` in any GitHub repository URL to instantly access the Dockerfile generation page for that repository.
+
+For example:
+```
+https://github.com/username/repo  →  https://gitcontainer.com/username/repo
+```
+
 ## ✨ Features
 
+- **🔄 Instant URL Access**: Just replace 'github.com' with 'gitcontainer.com' in any GitHub URL
 - **🤖 AI-Powered Analysis**: Uses OpenAI GPT-4 to analyze repository structure and generate intelligent Dockerfiles
 - **⚡ Real-time Streaming**: Watch the AI generate your Dockerfile in real-time with WebSocket streaming
 - **🎯 Smart Detection**: Automatically detects technology stacks (Python, Node.js, Java, Go, etc.)
@@ -58,10 +68,11 @@ Gitcontainer is an AI-powered web application that automatically generates produ
 
 ## 🛠️ How It Works
 
-1. **Repository Cloning**: Gitcontainer clones the GitHub repository locally using Git
-2. **Code Analysis**: Uses [gitingest](https://github.com/cyclotruc/gitingest) to analyze the repository structure and extract relevant information
-3. **AI Generation**: Sends the analysis to OpenAI GPT-4 with specialized prompts for Dockerfile generation
-4. **Smart Optimization**: The AI considers:
+1. **URL Processing**: Access any repository by replacing 'github.com' with 'gitcontainer.com' in the URL
+2. **Repository Cloning**: Gitcontainer clones the GitHub repository locally using Git
+3. **Code Analysis**: Uses [gitingest](https://github.com/cyclotruc/gitingest) to analyze the repository structure and extract relevant information
+4. **AI Generation**: Sends the analysis to OpenAI GPT-4 with specialized prompts for Dockerfile generation
+5. **Smart Optimization**: The AI considers:
    - Technology stack detection
    - Dependency management
    - Security best practices
