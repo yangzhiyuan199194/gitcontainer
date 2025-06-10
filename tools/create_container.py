@@ -15,6 +15,7 @@ async def create_container_tool(
     gitingest_tree: str,
     gitingest_content: str,
     project_name: Optional[str] = None,
+    additional_instructions: Optional[str] = None,
     max_context_chars: int = 50000,  # Limit to stay within context window
     websocket: Optional[Any] = None  # WebSocket connection for streaming
 ) -> Dict[str, Any]:
@@ -26,6 +27,7 @@ async def create_container_tool(
         gitingest_tree (str): Directory tree from gitingest
         gitingest_content (str): Full content from gitingest
         project_name (str, optional): Name of the project for the container
+        additional_instructions (str, optional): Additional instructions for the Dockerfile generation
         max_context_chars (int): Maximum characters to send in context
         websocket (Any, optional): WebSocket connection for streaming
         
@@ -46,6 +48,10 @@ async def create_container_tool(
             truncated_content = gitingest_content[:max_context_chars] + "\n\n... [Content truncated due to length] ..."
         
         # Create the prompt for Dockerfile generation
+        additional_instructions_section = ""
+        if additional_instructions and additional_instructions.strip():
+            additional_instructions_section = f"\n\nADDITIONAL INSTRUCTIONS:\n{additional_instructions.strip()}"
+        
         prompt = f"""Based on the following repository analysis, generate a comprehensive and production-ready Dockerfile.
 
 PROJECT SUMMARY:
@@ -55,7 +61,7 @@ DIRECTORY STRUCTURE:
 {gitingest_tree}
 
 SOURCE CODE CONTEXT:
-{truncated_content}
+{truncated_content}{additional_instructions_section}
 
 Please generate a Dockerfile that:
 1. Uses appropriate base images for the detected technology stack
@@ -214,6 +220,7 @@ def run_create_container(
     gitingest_tree: str,
     gitingest_content: str,
     project_name: Optional[str] = None,
+    additional_instructions: Optional[str] = None,
     websocket: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
@@ -224,13 +231,14 @@ def run_create_container(
         gitingest_tree (str): Directory tree from gitingest
         gitingest_content (str): Full content from gitingest
         project_name (str, optional): Name of the project
+        additional_instructions (str, optional): Additional instructions for Dockerfile generation
         websocket (Any, optional): WebSocket connection for streaming
         
     Returns:
         Dict[str, Any]: Dictionary containing generated Dockerfile and metadata
     """
     return asyncio.run(create_container_tool(
-        gitingest_summary, gitingest_tree, gitingest_content, project_name, websocket=websocket
+        gitingest_summary, gitingest_tree, gitingest_content, project_name, additional_instructions, websocket=websocket
     ))
 
 
@@ -258,6 +266,10 @@ create_container_function = {
                 "project_name": {
                     "type": "string",
                     "description": "Optional name for the project/container"
+                },
+                "additional_instructions": {
+                    "type": "string",
+                    "description": "Optional additional instructions for customizing the Dockerfile generation"
                 }
             },
             "required": ["gitingest_summary", "gitingest_tree", "gitingest_content"]
