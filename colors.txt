@@ -1,0 +1,40 @@
+# Colors used in GitHub to Dockerfile Generator Frontend - Blue Theme
+
+## Primary Brand Colors
+#F8FAFF - Main background (light blue/off-white)
+#FE4A60 - Brand red accent (for "2" in title)
+#4A90E2 - Brand blue accent (for "Dockerfile" in title)
+
+## Neutral Colors
+#FFFFFF - Pure white (Monaco editor background, streaming content)
+#F0F4FF - Light blue-gray background (results containers)
+#E6F2FF - Light blue (form backgrounds, info cards)
+#5A9BF5 - Primary blue (buttons, loader accent)
+
+## Gray Scale
+#000000 - Pure black (loading shadows)
+#1F2937 - Dark gray (Monaco editor borders)
+#374151 - Gray-700 (equivalent to gray-900 in some contexts)
+#4B5563 - Gray-600 (text, placeholders)
+#6B7280 - Gray-500 (borders)
+#9CA3AF - Gray-400 
+#D1D5DB - Gray-300 (inactive borders)
+#E5E7EB - Gray-200
+#F3F4F6 - Gray-100
+#F9FAFB - Gray-50
+
+## Status Colors
+#FEF2F2 - Red-50 (error backgrounds)
+#DC2626 - Red-600 (error text)
+#EF4444 - Red-500 (error borders)
+#B91C1C - Red-700 (error text)
+
+#F0FDF4 - Green-50 (success backgrounds)
+#10B981 - Green-500 (success borders)
+
+#FFF4E6 - Orange-50 (active/warning backgrounds)
+#F59E0B - Orange-500 (active/warning borders)
+
+## Loader Animation Colors
+#E6F2FF - Loader border base (light blue)
+#5A9BF5 - Loader spinning accent (primary blue) 

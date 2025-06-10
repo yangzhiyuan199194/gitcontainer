@@ -8,8 +8,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
     <style>
         .loader {
-            border: 8px solid #fff4da;
-            border-top: 8px solid #ffc480;
+            border: 8px solid #E6F2FF;
+            border-top: 8px solid #5A9BF5;
             border-radius: 50%;
             width: 64px;
             height: 64px;
@@ -51,14 +51,14 @@
         }
     </style>
 </head>
-<body class="bg-[#FFFDF8] min-h-screen">
+<body class="bg-[#F8FAFF] min-h-screen">
     <!-- Header -->
     <header class="border-b-[3px] border-gray-900">
         <div class="max-w-4xl mx-auto px-4 py-4">
             <h1 class="text-3xl font-bold tracking-tight">
                 <span class="text-gray-900">GitHub</span>
                 <span class="text-[#FE4A60]">2</span>
-                <span class="text-[#5CF1A4]">Dockerfile</span>
+                <span class="text-[#4A90E2]">Dockerfile</span>
             </h1>
         </div>
     </header>
@@ -88,7 +88,7 @@
         <!-- Input Form -->
         <div class="relative mb-8">
             <div class="w-full h-full absolute inset-0 bg-gray-900 rounded-xl translate-y-2 translate-x-2"></div>
-            <div class="rounded-xl relative z-20 p-8 border-[3px] border-gray-900 bg-[#fff4da]">
+            <div class="rounded-xl relative z-20 p-8 border-[3px] border-gray-900 bg-[#E6F2FF]">
                 <form method="post" class="flex flex-col md:flex-row gap-4">
                     <div class="relative flex-1">
                         <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0 z-10"></div>
@@ -105,7 +105,7 @@
                         <div class="w-full h-full rounded bg-gray-800 translate-y-1 translate-x-1 absolute inset-0 z-10"></div>
                         <button 
                             type="submit"
-                            class="py-3.5 rounded px-8 group-hover:-translate-y-px group-hover:-translate-x-px ease-out duration-300 z-20 relative w-full md:w-auto border-[3px] border-gray-900 font-medium bg-[#ffc480] tracking-wide text-lg text-gray-900"
+                            class="py-3.5 rounded px-8 group-hover:-translate-y-px group-hover:-translate-x-px ease-out duration-300 z-20 relative w-full md:w-auto border-[3px] border-gray-900 font-medium bg-[#5A9BF5] tracking-wide text-lg text-gray-900"
                         >
                             Generate Dockerfile
                         </button>
@@ -118,7 +118,7 @@
         {% if loading %}
         <div class="relative">
             <div class="w-full h-full absolute inset-0 bg-black rounded-xl translate-y-2 translate-x-2"></div>
-            <div class="bg-[#fafafa] rounded-xl border-[3px] border-gray-900 p-8 relative z-20 flex flex-col items-center space-y-4">
+            <div class="bg-[#F0F4FF] rounded-xl border-[3px] border-gray-900 p-8 relative z-20 flex flex-col items-center space-y-4">
                 <div class="loader"></div>
                 <p class="text-lg font-bold text-gray-900">Analyzing repository and generating Dockerfile...</p>
                 <p class="text-sm text-gray-600">This may take a few moments</p>
@@ -130,7 +130,7 @@
         {% if streaming %}
         <div id="streaming-container" class="relative">
             <div class="w-full h-full absolute inset-0 bg-gray-900 rounded-xl translate-y-2 translate-x-2"></div>
-            <div class="bg-[#fafafa] rounded-xl border-[3px] border-gray-900 p-8 relative z-20">
+            <div class="bg-[#F0F4FF] rounded-xl border-[3px] border-gray-900 p-8 relative z-20">
                 
                 <!-- Status Display -->
                 <div class="text-center mb-8">
@@ -142,7 +142,7 @@
                 <!-- Streaming Response Box -->
                 <div id="streaming-response-container" class="relative mb-6 hidden">
                     <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>
-                    <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-6 relative z-10">
+                    <div class="bg-[#E6F2FF] border-[3px] border-gray-900 rounded p-6 relative z-10">
                         <h3 class="text-lg font-bold text-gray-900 mb-4">Live AI Response:</h3>
                         <div 
                             id="streaming-content" 
@@ -153,7 +153,7 @@
 
                 <!-- Progress Steps -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div id="step-clone" class="bg-[#fff4da] border-[3px] border-gray-300 rounded p-4 transition-all duration-300">
+                    <div id="step-clone" class="bg-[#E6F2FF] border-[3px] border-gray-300 rounded p-4 transition-all duration-300">
                         <div class="flex items-center">
                             <div class="w-8 h-8 rounded-full border-[3px] border-gray-300 flex items-center justify-center mr-3">
                                 <span class="text-sm font-bold">1</span>
@@ -161,7 +161,7 @@
                             <span class="font-medium">Clone Repository</span>
                         </div>
                     </div>
-                    <div id="step-analyze" class="bg-[#fff4da] border-[3px] border-gray-300 rounded p-4 transition-all duration-300">
+                    <div id="step-analyze" class="bg-[#E6F2FF] border-[3px] border-gray-300 rounded p-4 transition-all duration-300">
                         <div class="flex items-center">
                             <div class="w-8 h-8 rounded-full border-[3px] border-gray-300 flex items-center justify-center mr-3">
                                 <span class="text-sm font-bold">2</span>
@@ -169,7 +169,7 @@
                             <span class="font-medium">Analyze Structure</span>
                         </div>
                     </div>
-                    <div id="step-generate" class="bg-[#fff4da] border-[3px] border-gray-300 rounded p-4 transition-all duration-300">
+                    <div id="step-generate" class="bg-[#E6F2FF] border-[3px] border-gray-300 rounded p-4 transition-all duration-300">
                         <div class="flex items-center">
                             <div class="w-8 h-8 rounded-full border-[3px] border-gray-300 flex items-center justify-center mr-3">
                                 <span class="text-sm font-bold">3</span>
@@ -185,7 +185,7 @@
         <!-- Results Container (hidden initially) -->
         <div id="results-container" class="relative hidden">
             <div class="w-full h-full absolute inset-0 bg-gray-900 rounded-xl translate-y-2 translate-x-2"></div>
-            <div class="bg-[#fafafa] rounded-xl border-[3px] border-gray-900 p-6 relative z-20 space-y-6">
+            <div class="bg-[#F0F4FF] rounded-xl border-[3px] border-gray-900 p-6 relative z-20 space-y-6">
                 <!-- Results content will be populated by JavaScript -->
             </div>
         </div>
@@ -195,19 +195,19 @@
         {% if result %}
         <div class="relative">
             <div class="w-full h-full absolute inset-0 bg-gray-900 rounded-xl translate-y-2 translate-x-2"></div>
-            <div class="bg-[#fafafa] rounded-xl border-[3px] border-gray-900 p-6 relative z-20 space-y-6">
+            <div class="bg-[#F0F4FF] rounded-xl border-[3px] border-gray-900 p-6 relative z-20 space-y-6">
                 
                 <!-- Project Info -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">
+                    <div class="bg-[#E6F2FF] border-[3px] border-gray-900 rounded p-4">
                         <h3 class="font-bold text-gray-900">Project</h3>
                         <p class="text-sm">{{ result.project_name }}</p>
                     </div>
-                    <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">
+                    <div class="bg-[#E6F2FF] border-[3px] border-gray-900 rounded p-4">
                         <h3 class="font-bold text-gray-900">Technology Stack</h3>
                         <p class="text-sm">{{ result.technology_stack }}</p>
                     </div>
-                    <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">
+                    <div class="bg-[#E6F2FF] border-[3px] border-gray-900 rounded p-4">
                         <h3 class="font-bold text-gray-900">Repository Size</h3>
                         <p class="text-sm">{{ result.repo_info.file_count }} files ({{ result.repo_info.size_mb }} MB)</p>
                     </div>
@@ -221,7 +221,7 @@
                             <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>
                             <button 
                                 onclick="copyDockerfile()"
-                                class="px-4 py-2 bg-[#ffc480] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2"
+                                class="px-4 py-2 bg-[#5A9BF5] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
@@ -247,7 +247,7 @@
                             <div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>
                             <button 
                                 onclick="copyCompose()"
-                                class="px-4 py-2 bg-[#ffc480] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2"
+                                class="px-4 py-2 bg-[#5A9BF5] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2"
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
@@ -271,7 +271,7 @@
                     {% if result.reasoning %}
                     <div>
                         <h3 class="text-lg font-bold text-gray-900 mb-2">Base Image Reasoning</h3>
-                        <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">
+                        <div class="bg-[#E6F2FF] border-[3px] border-gray-900 rounded p-4">
                             <p class="text-sm">{{ result.reasoning }}</p>
                         </div>
                     </div>
@@ -280,7 +280,7 @@
                     {% if result.additional_notes %}
                     <div>
                         <h3 class="text-lg font-bold text-gray-900 mb-2">Additional Notes</h3>
-                        <div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">
+                        <div class="bg-[#E6F2FF] border-[3px] border-gray-900 rounded p-4">
                             <p class="text-sm whitespace-pre-wrap">{{ result.additional_notes }}</p>
                         </div>
                     </div>
@@ -611,15 +611,15 @@
             
             // Project Info
             html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">';
-            html += '<div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">';
+            html += '<div class="bg-[#E6F2FF] border-[3px] border-gray-900 rounded p-4">';
             html += '<h3 class="font-bold text-gray-900">Project</h3>';
             html += '<p class="text-sm">' + result.project_name + '</p>';
             html += '</div>';
-            html += '<div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">';
+            html += '<div class="bg-[#E6F2FF] border-[3px] border-gray-900 rounded p-4">';
             html += '<h3 class="font-bold text-gray-900">Technology Stack</h3>';
             html += '<p class="text-sm">' + result.technology_stack + '</p>';
             html += '</div>';
-            html += '<div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">';
+            html += '<div class="bg-[#E6F2FF] border-[3px] border-gray-900 rounded p-4">';
             html += '<h3 class="font-bold text-gray-900">Repository Size</h3>';
             html += '<p class="text-sm">' + result.repo_info.file_count + ' files (' + result.repo_info.size_mb + ' MB)</p>';
             html += '</div>';
@@ -631,7 +631,7 @@
             html += '<h3 class="text-xl font-bold text-gray-900">Generated Dockerfile</h3>';
             html += '<div class="relative group">';
             html += '<div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>';
-            html += '<button onclick="copyDockerfile()" class="px-4 py-2 bg-[#ffc480] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2">';
+            html += '<button onclick="copyDockerfile()" class="px-4 py-2 bg-[#5A9BF5] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2">';
             html += '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>';
             html += 'Copy Dockerfile';
             html += '</button>';
@@ -652,7 +652,7 @@
                 html += '<h3 class="text-xl font-bold text-gray-900">Suggested docker-compose.yml</h3>';
                 html += '<div class="relative group">';
                 html += '<div class="w-full h-full rounded bg-gray-900 translate-y-1 translate-x-1 absolute inset-0"></div>';
-                html += '<button onclick="copyCompose()" class="px-4 py-2 bg-[#ffc480] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2">';
+                html += '<button onclick="copyCompose()" class="px-4 py-2 bg-[#5A9BF5] border-[3px] border-gray-900 text-gray-900 rounded group-hover:-translate-y-px group-hover:-translate-x-px transition-transform relative z-10 flex items-center gap-2">';
                 html += '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>';
                 html += 'Copy Compose';
                 html += '</button>';
@@ -674,7 +674,7 @@
                 if (result.reasoning) {
                     html += '<div>';
                     html += '<h3 class="text-lg font-bold text-gray-900 mb-2">Base Image Reasoning</h3>';
-                    html += '<div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">';
+                    html += '<div class="bg-[#E6F2FF] border-[3px] border-gray-900 rounded p-4">';
                     html += '<p class="text-sm">' + result.reasoning + '</p>';
                     html += '</div>';
                     html += '</div>';
@@ -683,7 +683,7 @@
                 if (result.additional_notes) {
                     html += '<div>';
                     html += '<h3 class="text-lg font-bold text-gray-900 mb-2">Additional Notes</h3>';
-                    html += '<div class="bg-[#fff4da] border-[3px] border-gray-900 rounded p-4">';
+                    html += '<div class="bg-[#E6F2FF] border-[3px] border-gray-900 rounded p-4">';
                     html += '<p class="text-sm whitespace-pre-wrap">' + result.additional_notes + '</p>';
                     html += '</div>';
                     html += '</div>';
