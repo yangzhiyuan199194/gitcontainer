@@ -106,6 +106,19 @@
         </div>
         {% endif %}
 
+        <!-- Pre-filled URL notification -->
+        {% if pre_filled %}
+        <div class="mb-6 p-4 bg-green-50 border-[3px] border-green-500 rounded-lg text-green-700">
+            <div class="flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span class="font-medium">Great! We've automatically detected your GitHub repository from the URL.</span>
+            </div>
+            <p class="text-sm mt-1">You can now generate a Dockerfile for this repository, or modify the URL if needed.</p>
+        </div>
+        {% endif %}
+
         <!-- Input Form -->
         <div class="relative mb-8">
             <div class="w-full h-full absolute inset-0 bg-gray-900 rounded-xl translate-y-2 translate-x-2"></div>

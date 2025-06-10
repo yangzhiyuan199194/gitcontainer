@@ -61,6 +61,47 @@ async def home(request: Request):
     })
 
 
+@app.get("/{path:path}", response_class=HTMLResponse)
+async def dynamic_github_route(request: Request, path: str):
+    """Handle GitHub-style URLs by replacing gitcontainer.com with github.com."""
+    # Skip certain paths that shouldn't be treated as GitHub routes
+    skip_paths = {"health", "favicon.ico", "favicon-16x16.png", "favicon-32x32.png", "apple-touch-icon.png", "static", "ws"}
+    
+    # Split path into segments
+    segments = [segment for segment in path.split('/') if segment]
+    
+    # If it's a skip path, let it fall through
+    if segments and segments[0] in skip_paths:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    # Check if we have at least 2 segments (username/repo)
+    if len(segments) < 2:
+        return templates.TemplateResponse("index.jinja", {
+            "request": request,
+            "repo_url": "",
+            "loading": False,
+            "streaming": False,
+            "result": None,
+            "error": f"Invalid GitHub URL format. Expected format: gitcontainer.com/username/repository",
+            "pre_filled": False
+        })
+    
+    # Use only the first two segments (username/repo)
+    username, repo = segments[0], segments[1]
+    github_url = f"https://github.com/{username}/{repo}"
+    
+    return templates.TemplateResponse("index.jinja", {
+        "request": request,
+        "repo_url": github_url,
+        "loading": False,
+        "streaming": False,
+        "result": None,
+        "error": None,
+        "pre_filled": True
+    })
+
+
 @app.post("/", response_class=HTMLResponse) 
 async def generate_dockerfile(
     request: Request, 
