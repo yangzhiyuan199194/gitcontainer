@@ -111,6 +111,17 @@ async def dynamic_github_route(request: Request, path: str):
     })
 
 
+@app.post("/{path:path}", response_class=HTMLResponse)
+async def dynamic_github_route_post(
+    request: Request,
+    path: str,
+    repo_url: str = Form(...),
+    additional_instructions_hidden: str = Form("")
+):
+    """Handle POST requests for GitHub-style URLs, reusing the generate_dockerfile logic."""
+    return await generate_dockerfile(request, repo_url, additional_instructions_hidden)
+
+
 @app.post("/", response_class=HTMLResponse) 
 async def generate_dockerfile(
     request: Request, 
