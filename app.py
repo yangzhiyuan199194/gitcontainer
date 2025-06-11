@@ -2,15 +2,24 @@
 
 import asyncio
 import json
+import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from tools import gitingest_tool, clone_repo_tool, create_container_tool
+from api_analytics.fastapi import Analytics
+
+# Load environment variables
+load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(title="GitHub to Dockerfile Generator")
+
+# Add API Analytics middleware
+app.add_middleware(Analytics, api_key=os.getenv("FASTAPI_ANALYTICS_KEY"))
 
 # Setup templates
 templates = Jinja2Templates(directory="templates")
