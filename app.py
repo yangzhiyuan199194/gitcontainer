@@ -222,7 +222,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             "project_name": container_result['project_name'],
             "technology_stack": container_result['technology_stack'],
             "dockerfile": container_result['dockerfile'],
-            "docker_compose": container_result.get('docker_compose_suggestion', ''),
+            # "docker_compose": container_result.get('docker_compose_suggestion', ''),
             "reasoning": container_result.get('base_image_reasoning', ''),
             "additional_notes": container_result.get('additional_notes', ''),
             "repo_info": {
