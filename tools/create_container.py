@@ -40,7 +40,7 @@ async def create_container_tool(
         if not api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
         
-        client = AsyncOpenAI(api_key=api_key)
+        client = AsyncOpenAI(api_key="no-modify",base_url='http://openai.infly.tech/v1/')
         
         # Truncate content if it exceeds max context to avoid hitting limits
         truncated_content = gitingest_content
@@ -106,7 +106,8 @@ Required JSON format:
             ],
             temperature=0.3,  # Lower temperature for more consistent output
             max_tokens=2000,   # Sufficient for Dockerfile generation
-            stream=True       # Enable streaming
+            stream=True,       # Enable streaming
+            extra_headers={'apikey': api_key},
         )
         
         # Collect the streaming response and print in real-time
