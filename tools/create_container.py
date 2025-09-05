@@ -10,6 +10,116 @@ import re
 load_dotenv()
 
 
+async def build_docker_image(
+    dockerfile_content: str,
+    project_name: str,
+    local_path: str
+) -> Dict[str, Any]:
+    """
+    Build a Docker image from the provided Dockerfile content.
+    
+    Args:
+        dockerfile_content (str): The content of the Dockerfile
+        project_name (str): Name of the project
+        local_path (str): Local path to the repository
+        
+    Returns:
+        Dict[str, Any]: Dictionary containing the build result and image information
+    """
+    try:
+        import tempfile
+        import shutil
+        import subprocess
+        from pathlib import Path
+        
+        # Create a temporary directory for building
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            
+            # Write the Dockerfile
+            dockerfile_path = temp_path / "Dockerfile"
+            with open(dockerfile_path, "w", encoding="utf-8") as f:
+                f.write(dockerfile_content)
+            
+            # Copy project files to temp directory (excluding .git)
+            if os.path.exists(local_path):
+                for item in os.listdir(local_path):
+                    if item != ".git":  # Skip .git directory
+                        src = os.path.join(local_path, item)
+                        dst = os.path.join(temp_dir, item)
+                        if os.path.isdir(src):
+                            shutil.copytree(src, dst)
+                        else:
+                            shutil.copy2(src, dst)
+            
+            # Generate image tag (use project name and timestamp)
+            import time
+            timestamp = int(time.time())
+            image_tag = f"{project_name.lower().replace('/', '-')}:{timestamp}"
+            
+            # Try to build the Docker image with retry mechanism
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    # Add --no-cache option to avoid cache-related issues on retry attempts
+                    build_args = ["docker", "build", "-t", image_tag, "."]
+                    if attempt > 0:
+                        build_args.insert(2, "--no-cache")
+                    
+                    build_process = await asyncio.create_subprocess_exec(
+                        *build_args,
+                        cwd=temp_dir,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    
+                    stdout, stderr = await build_process.communicate()
+                    
+                    if build_process.returncode == 0:
+                        return {
+                            "success": True,
+                            "image_tag": image_tag,
+                            "message": f"Successfully built Docker image: {image_tag}",
+                            "build_log": stdout.decode('utf-8') if stdout else ""
+                        }
+                    else:
+                        error_output = stderr.decode('utf-8') if stderr else "Docker build failed"
+                        # If this is the last attempt, return the error
+                        if attempt == max_retries - 1:
+                            return {
+                                "success": False,
+                                "error": error_output,
+                                "image_tag": image_tag,
+                                "build_log": error_output
+                            }
+                        # Otherwise, continue to retry
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        return {
+                            "success": False,
+                            "error": f"Failed to execute docker build command: {str(e)}",
+                            "image_tag": image_tag
+                        }
+            
+            # This should not be reached, but just in case
+            return {
+                "success": False,
+                "error": "Maximum retry attempts reached",
+                "image_tag": image_tag
+            }
+                
+    except Exception as e:
+        # 记录详细的异常信息用于调试，但不暴露给用户
+        import logging
+        logging.exception("Failed to build Docker image")
+        
+        return {
+            "success": False,
+            "error": "Failed to build Docker image due to an internal error",
+            "image_tag": None
+        }
+
+
 async def create_container_tool(
     gitingest_summary: str,
     gitingest_tree: str,
@@ -75,7 +185,7 @@ Please generate a Dockerfile that:
 
 If you detect multiple services or a complex architecture, provide a main Dockerfile and suggest docker-compose.yml structure.
 
-IMPORTANT: Respond ONLY with a valid JSON object. Do not include any markdown formatting, explanations, or code blocks. The response must be parseable JSON.
+IMPORTANT: Respond ONLY with a valid JSON object. Do not include any explanations, or code blocks. The response must be parseable JSON.
 
 Required JSON format:
 {{
@@ -97,7 +207,7 @@ Required JSON format:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert DevOps engineer specializing in containerization. Generate production-ready Dockerfiles based on repository analysis. ALWAYS respond with valid JSON only - no markdown, no explanations, no code blocks. Just pure JSON that can be parsed directly."
+                    "content": "You are an expert DevOps engineer specializing in containerization. Generate production-ready Dockerfiles based on repository analysis. ALWAYS respond with valid JSON only - no explanations, no code blocks. Just pure JSON that can be parsed directly."
                 },
                 {
                     "role": "user",
@@ -137,7 +247,7 @@ Required JSON format:
             # First try direct JSON parsing
             dockerfile_data = json.loads(dockerfile_response)
         except json.JSONDecodeError:
-            # Try to extract JSON from markdown code blocks
+            # Try to extract JSON from code blocks
             try:
                 # Look for JSON in code blocks
                 json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', dockerfile_response, re.DOTALL)

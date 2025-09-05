@@ -220,7 +220,7 @@
                 </div>
 
                 <!-- Progress Steps -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div id="step-clone" class="border border-gray-200 rounded p-4 transition-all duration-300">
                         <div class="flex items-center">
                             <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
@@ -243,6 +243,14 @@
                                 <span class="text-sm font-bold">3</span>
                             </div>
                             <span class="font-medium">生成 Dockerfile</span>
+                        </div>
+                    </div>
+                    <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
+                                <span class="text-sm font-bold">4</span>
+                            </div>
+                            <span class="font-medium">构建镜像</span>
                         </div>
                     </div>
                 </div>
@@ -343,6 +351,55 @@
                 </div>
                 {% endif %}
             </div>
+            {% endif %}
+            
+            <!-- Docker Image Build Info -->
+            {% if result.image_build %}
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-3">Docker 镜像构建</h3>
+                <div class="border border-gray-200 rounded p-4">
+                
+                if (result.image_build.success) {
+                    html += '<div class="bg-green-50 border border-green-200 rounded p-3 mb-3">';
+                    html += '<p class="text-green-700 font-medium">' + result.image_build.message + '</p>';
+                    html += '</div>';
+                    html += '<div class="mt-3">';
+                    html += '<h4 class="font-medium text-gray-700 mb-2">镜像标签:</h4>';
+                    html += '<div class="bg-gray-50 p-3 rounded font-mono text-sm break-words">';
+                    html += result.image_build.image_tag;
+                    html += '</div>';
+                    html += '<p class="mt-2 text-sm text-gray-600">您可以使用以下命令运行此镜像:</p>';
+                    html += '<div class="mt-1 bg-gray-800 text-green-400 p-3 rounded font-mono text-sm">';
+                    html += 'docker run -p 8000:8000 ' + result.image_build.image_tag;
+                    html += '</div>';
+                    html += '</div>';
+                } else {
+                    html += '<div class="bg-red-50 border border-red-200 rounded p-3">';
+                    html += '<p class="text-red-700 font-medium">构建失败: ' + result.image_build.error + '</p>';
+                    html += '</div>';
+                    
+                    if (result.image_build.build_log) {
+                        html += '<div class="mt-3">';
+                        html += '<h4 class="font-medium text-gray-700 mb-2">构建日志:</h4>';
+                        html += '<div class="bg-gray-800 text-red-400 p-3 rounded font-mono text-xs overflow-auto max-h-40">';
+                        html += result.image_build.build_log;
+                        html += '</div>';
+                        html += '</div>';
+                    }
+                    
+                    html += '<div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">';
+                    html += '<p class="text-blue-700 text-sm">';
+                    html += '<strong>提示:</strong> 构建失败可能是由于网络问题或Docker Hub镜像拉取问题导致的。';
+                    html += '您可以手动复制Dockerfile内容并使用以下命令构建:';
+                    html += '</p>';
+                    html += '<div class="mt-2 bg-gray-800 text-yellow-400 p-2 rounded font-mono text-xs">';
+                    html += 'docker build --no-cache -t your-image-name .';
+                    html += '</div>';
+                    html += '</div>';
+                }
+                
+                html += '</div>';
+                html += '</div>';
             {% endif %}
 
         </div>
@@ -598,6 +655,9 @@
             } else if (message.includes('生成') || message.includes('🐳')) {
                 completeStep('analyze');
                 highlightStep('generate');
+            } else if (message.includes('构建') || message.includes('🔨')) {
+                completeStep('generate');
+                highlightStep('build');
             }
         }
         
@@ -723,6 +783,55 @@
                     html += '</div>';
                 }
                 
+                html += '</div>';
+            }
+            
+            // Docker Image Build Info
+            if (result.image_build) {
+                html += '<div>';
+                html += '<h3 class="text-lg font-medium text-gray-900 mb-3">Docker 镜像构建</h3>';
+                html += '<div class="border border-gray-200 rounded p-4">';
+                
+                if (result.image_build.success) {
+                    html += '<div class="bg-green-50 border border-green-200 rounded p-3 mb-3">';
+                    html += '<p class="text-green-700 font-medium">' + result.image_build.message + '</p>';
+                    html += '</div>';
+                    html += '<div class="mt-3">';
+                    html += '<h4 class="font-medium text-gray-700 mb-2">镜像标签:</h4>';
+                    html += '<div class="bg-gray-50 p-3 rounded font-mono text-sm break-words">';
+                    html += result.image_build.image_tag;
+                    html += '</div>';
+                    html += '<p class="mt-2 text-sm text-gray-600">您可以使用以下命令运行此镜像:</p>';
+                    html += '<div class="mt-1 bg-gray-800 text-green-400 p-3 rounded font-mono text-sm">';
+                    html += 'docker run -p 8000:8000 ' + result.image_build.image_tag;
+                    html += '</div>';
+                    html += '</div>';
+                } else {
+                    html += '<div class="bg-red-50 border border-red-200 rounded p-3">';
+                    html += '<p class="text-red-700 font-medium">构建失败: ' + result.image_build.error + '</p>';
+                    html += '</div>';
+                    
+                    if (result.image_build.build_log) {
+                        html += '<div class="mt-3">';
+                        html += '<h4 class="font-medium text-gray-700 mb-2">构建日志:</h4>';
+                        html += '<div class="bg-gray-800 text-red-400 p-3 rounded font-mono text-xs overflow-auto max-h-40">';
+                        html += result.image_build.build_log;
+                        html += '</div>';
+                        html += '</div>';
+                    }
+                    
+                    html += '<div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">';
+                    html += '<p class="text-blue-700 text-sm">';
+                    html += '<strong>提示:</strong> 构建失败可能是由于网络问题或Docker Hub镜像拉取问题导致的。';
+                    html += '您可以手动复制Dockerfile内容并使用以下命令构建:';
+                    html += '</p>';
+                    html += '<div class="mt-2 bg-gray-800 text-yellow-400 p-2 rounded font-mono text-xs">';
+                    html += 'docker build --no-cache -t your-image-name .';
+                    html += '</div>';
+                    html += '</div>';
+                }
+                
+                html += '</div>';
                 html += '</div>';
             }
 

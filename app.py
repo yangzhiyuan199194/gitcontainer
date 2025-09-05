@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
-from tools import gitingest_tool, clone_repo_tool, create_container_tool
+from tools import gitingest_tool, clone_repo_tool, create_container_tool, build_docker_image
 from api_analytics.fastapi import Analytics
 
 # Load environment variables
@@ -217,6 +217,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             }))
             return
         
+        # Step 4: Build Docker image
+        await websocket.send_text(json.dumps({
+            "type": "status",
+            "content": "🔨 Building Docker image..."
+        }))
+        
+        build_result = await build_docker_image(
+            dockerfile_content=container_result['dockerfile'],
+            project_name=clone_result['repo_name'],
+            local_path=clone_result['local_path']
+        )
+        
         # Send final result
         final_result = {
             "project_name": container_result['project_name'],
@@ -225,6 +237,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             # "docker_compose": container_result.get('docker_compose_suggestion', ''),
             "reasoning": container_result.get('base_image_reasoning', ''),
             "additional_notes": container_result.get('additional_notes', ''),
+            "image_build": build_result,
             "repo_info": {
                 "name": clone_result['repo_name'],
                 "size_mb": clone_result['repo_size_mb'],
