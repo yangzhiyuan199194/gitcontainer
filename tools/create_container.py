@@ -118,13 +118,14 @@ Required JSON format:
         print("-" * 50)
         
         async for chunk in response:
-            if chunk.choices[0].delta.content is not None:
-                content = chunk.choices[0].delta.content
-                print(content, end="", flush=True)
-                dockerfile_response += content
-                # Only emit chunks if WebSocket is still active
-                if websocket_active:
-                    websocket_active = await _emit_ws_message(websocket, "chunk", content)
+            if len(chunk.choices) > 0 :
+                if chunk.choices[0].delta.content is not None:
+                    content = chunk.choices[0].delta.content
+                    print(content, end="", flush=True)
+                    dockerfile_response += content
+                    # Only emit chunks if WebSocket is still active
+                    if websocket_active:
+                        websocket_active = await _emit_ws_message(websocket, "chunk", content)
         
         print("\n" + "-" * 50)
         print("✅ Generation complete!\n")
