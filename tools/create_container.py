@@ -147,10 +147,13 @@ async def create_container_tool(
     try:
         # Initialize OpenAI client
         api_key = os.getenv("OPENAI_API_KEY")
+        base_url = os.getenv("BASE_URL")
+        inf_api_key = os.getenv("INF_API_KEY")
+
         if not api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
         
-        client = AsyncOpenAI(api_key="no-modify",base_url='http://openai.infly.tech/v1/')
+        client = AsyncOpenAI(api_key=inf_api_key,base_url=base_url)
         
         # Truncate content if it exceeds max context to avoid hitting limits
         truncated_content = gitingest_content
