@@ -230,12 +230,31 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             "content": "🔨 Building Docker image..."
         }))
         
+        if websocket:
+            await websocket.send_text(json.dumps({
+                "type": "build_log",
+                "content": "🚀 开始构建 Docker 镜像...\n"
+            }))
+        
         build_result = await build_docker_image(
             dockerfile_content=container_result['dockerfile'],
             project_name=clone_result['repo_name'],
             local_path=clone_result['local_path'],
             websocket=websocket
         )
+        
+        # Send build result information
+        if websocket:
+            if build_result["success"]:
+                await websocket.send_text(json.dumps({
+                    "type": "build_log",
+                    "content": f"✅ Docker 镜像构建完成: {build_result['image_tag']}\n"
+                }))
+            else:
+                await websocket.send_text(json.dumps({
+                    "type": "build_log",
+                    "content": f"❌ Docker 镜像构建失败: {build_result.get('error', 'Unknown error')}\n"
+                }))
         
         # Send final result
         final_result = {
