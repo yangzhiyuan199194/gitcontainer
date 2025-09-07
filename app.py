@@ -171,7 +171,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             "content": f"🔄 Cloning repository: {repo_url}"
         }))
         
-        clone_result = await clone_repo_tool(repo_url)
+        clone_result = await clone_repo_tool(repo_url, websocket=websocket)
         
         if not clone_result["success"]:
             await websocket.send_text(json.dumps({
@@ -186,7 +186,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             "content": "📊 Analyzing repository structure..."
         }))
         
-        ingest_result = await gitingest_tool(clone_result['local_path'])
+        ingest_result = await gitingest_tool(clone_result['local_path'], websocket=websocket)
         
         if not ingest_result["success"]:
             await websocket.send_text(json.dumps({
@@ -217,6 +217,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             }))
             return
         
+        if not container_result["success"]:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "content": f"Failed to generate Dockerfile: {container_result['error']}"
+            }))
+            return
+        
         # Step 4: Build Docker image
         await websocket.send_text(json.dumps({
             "type": "status",
@@ -226,7 +233,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         build_result = await build_docker_image(
             dockerfile_content=container_result['dockerfile'],
             project_name=clone_result['repo_name'],
-            local_path=clone_result['local_path']
+            local_path=clone_result['local_path'],
+            websocket=websocket
         )
         
         # Send final result
@@ -283,4 +291,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(app, host="0.0.0.0", port=8001)

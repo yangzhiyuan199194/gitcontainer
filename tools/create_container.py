@@ -13,7 +13,8 @@ load_dotenv()
 async def build_docker_image(
     dockerfile_content: str,
     project_name: str,
-    local_path: str
+    local_path: str,
+    websocket: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     Build a Docker image from the provided Dockerfile content.
@@ -22,6 +23,7 @@ async def build_docker_image(
         dockerfile_content (str): The content of the Dockerfile
         project_name (str): Name of the project
         local_path (str): Local path to the repository
+        websocket (Any, optional): WebSocket connection for streaming build logs
         
     Returns:
         Dict[str, Any]: Dictionary containing the build result and image information
@@ -66,24 +68,41 @@ async def build_docker_image(
                     if attempt > 0:
                         build_args.insert(2, "--no-cache")
                     
+                    # Send status message about the build attempt
+                    if websocket:
+                        await _emit_ws_message(websocket, "status", f"🔨 正在构建 Docker 镜像 (尝试 {attempt + 1}/{max_retries})...")
+                    
                     build_process = await asyncio.create_subprocess_exec(
                         *build_args,
                         cwd=temp_dir,
                         stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
+                        stderr=asyncio.subprocess.STDOUT  # Combine stderr with stdout
                     )
                     
-                    stdout, stderr = await build_process.communicate()
+                    # Stream the build output in real-time
+                    build_log = ""
+                    while True:
+                        line = await build_process.stdout.readline()
+                        if not line:
+                            break
+                        decoded_line = line.decode('utf-8')
+                        build_log += decoded_line
+                        
+                        # Send each line to the WebSocket if available
+                        if websocket:
+                            await _emit_ws_message(websocket, "build_log", decoded_line)
+                    
+                    await build_process.wait()
                     
                     if build_process.returncode == 0:
                         return {
                             "success": True,
                             "image_tag": image_tag,
                             "message": f"Successfully built Docker image: {image_tag}",
-                            "build_log": stdout.decode('utf-8') if stdout else ""
+                            "build_log": build_log
                         }
                     else:
-                        error_output = stderr.decode('utf-8') if stderr else "Docker build failed"
+                        error_output = build_log if build_log else "Docker build failed"
                         # If this is the last attempt, return the error
                         if attempt == max_retries - 1:
                             return {
@@ -205,23 +224,38 @@ Required JSON format:
         if websocket_active:
             print("🐳 Generating Dockerfile... (streaming response)\n")
         
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",  # Using GPT-4 for better code generation
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert DevOps engineer specializing in containerization. Generate production-ready Dockerfiles based on repository analysis. ALWAYS respond with valid JSON only - no explanations, no code blocks. Just pure JSON that can be parsed directly."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=0.3,  # Lower temperature for more consistent output
-            max_tokens=2000,   # Sufficient for Dockerfile generation
-            stream=True,       # Enable streaming
-            extra_headers={'apikey': api_key},
-        )
+        messages = [
+            {
+                "role": "system",
+                "content": "You are an expert DevOps engineer specializing in containerization. Generate production-ready Dockerfiles based on repository analysis. ALWAYS respond with valid JSON only - no explanations, no code blocks. Just pure JSON that can be parsed directly."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+        
+        print("Debug - About to make API call")
+        print(f"Debug - Model: gpt-4o-mini")
+        print(f"Debug - Messages count: {len(messages)}")
+        print(f"Debug - Temperature: 0.3")
+        print(f"Debug - Max tokens: 2000")
+        print(f"Debug - Stream: True")
+        
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",  # Using GPT-4 for better code generation
+                messages=messages,
+                temperature=0.3,  # Lower temperature for more consistent output
+                max_tokens=2000,   # Sufficient for Dockerfile generation
+                stream=True,       # Enable streaming
+                extra_headers={'apikey': api_key} if api_key else None,
+            )
+            
+            print("Debug - API call initiated successfully")
+        except Exception as e:
+            print(f"Debug - API call failed with error: {str(e)}")
+            raise e
         
         # Collect the streaming response and print in real-time
         dockerfile_response = ""
@@ -406,4 +440,4 @@ create_container_function = {
             "required": ["gitingest_summary", "gitingest_tree", "gitingest_content"]
         }
     }
-} 
+}

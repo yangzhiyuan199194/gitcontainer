@@ -1,17 +1,20 @@
 import asyncio
 import os
 import shutil
+import time
+import json
 from urllib.parse import urlparse
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
-async def clone_repo_tool(github_url: str, target_dir: str = "repos") -> Dict[str, Any]:
+async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket: Optional[Any] = None) -> Dict[str, Any]:
     """
     Clone a GitHub repository locally for future usage.
     
     Args:
         github_url (str): The GitHub repository URL to clone
         target_dir (str): Directory where to clone the repository (default: "repos")
+        websocket (Optional[Any]): WebSocket connection for streaming output
         
     Returns:
         Dict[str, Any]: Dictionary containing clone results and local path
@@ -45,23 +48,112 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos") -> Dict[st
         # Full local path for the cloned repository
         local_path = os.path.join(target_dir, f"{owner}_{repo_name}")
         
-        # Remove existing directory if it exists
+        # Remove existing directory if it exists with enhanced retry mechanism
         if os.path.exists(local_path):
-            shutil.rmtree(local_path)
+            if websocket:
+                await websocket.send_text(json.dumps({
+                    "type": "status",
+                    "content": f"🗑️  Removing existing directory: {local_path}"
+                }))
+            for attempt in range(5):  # Try up to 5 times
+                try:
+                    # Change permissions to ensure we can delete
+                    if os.path.isdir(local_path):
+                        for root, dirs, files in os.walk(local_path):
+                            for d in dirs:
+                                os.chmod(os.path.join(root, d), 0o777)
+                            for f in files:
+                                os.chmod(os.path.join(root, f), 0o777)
+                        os.chmod(local_path, 0o777)
+                    
+                    shutil.rmtree(local_path)
+                    
+                    # Wait and verify deletion
+                    time.sleep(0.2)
+                    if not os.path.exists(local_path):
+                        break
+                        
+                    # If still exists, try again
+                    if attempt == 4:  # Last attempt
+                        return {
+                            "success": False,
+                            "error": f"Failed to remove existing directory after 5 attempts. Directory might be locked by another process.",
+                            "url": github_url
+                        }
+                except PermissionError as e:
+                    if attempt == 4:  # Last attempt
+                        return {
+                            "success": False,
+                            "error": f"Permission denied when removing directory: {str(e)}. Directory might be locked by another process.",
+                            "url": github_url
+                        }
+                    time.sleep(0.5)  # Wait before retrying
+                except Exception as e:
+                    if attempt == 4:  # Last attempt
+                        return {
+                            "success": False,
+                            "error": f"Failed to remove existing directory after 5 attempts: {str(e)}",
+                            "url": github_url
+                        }
+                    time.sleep(0.5)  # Wait before retrying
         
         # Clone the repository using git command
         clone_command = f"git clone {github_url} {local_path}"
         
-        # Run the git clone command
+        # Clone the repository using git command
+        clone_command = f"git clone {github_url} {local_path}"
+        
+        if websocket:
+            await websocket.send_text(json.dumps({
+                "type": "status",
+                "content": f"📥 Cloning repository to: {local_path}"
+            }))
+        
+        # Run the git clone command with real-time output
         process = await asyncio.create_subprocess_shell(
             clone_command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         
-        stdout, stderr = await process.communicate()
+        # Stream output in real-time
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+            line_str = line.decode('utf-8').strip()
+            if websocket and line_str:
+                await websocket.send_text(json.dumps({
+                    "type": "chunk",
+                    "content": f"[CLONE] {line_str}\n"
+                }))
+        
+        # Also read stderr
+        stderr_lines = []
+        while True:
+            line = await process.stderr.readline()
+            if not line:
+                break
+            line_str = line.decode('utf-8').strip()
+            stderr_lines.append(line_str)
+            if websocket and line_str:
+                await websocket.send_text(json.dumps({
+                    "type": "chunk",
+                    "content": f"[CLONE ERROR] {line_str}\n"
+                }))
+        
+        await process.wait()
         
         if process.returncode == 0:
+            # Get repository info
+            repo_size = get_directory_size(local_path)
+            file_count = count_files(local_path)
+            
+            if websocket:
+                await websocket.send_text(json.dumps({
+                    "type": "chunk",
+                    "content": f"✅ Successfully cloned {owner}/{repo_name}\n"
+                }))
             # Get repository info
             repo_size = get_directory_size(local_path)
             file_count = count_files(local_path)
