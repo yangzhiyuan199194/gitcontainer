@@ -225,12 +225,6 @@
                             </div>
                             <span class="font-medium">克隆仓库</span>
                         </div>
-                        <div id="step-clone-content" class="mt-2 text-sm text-gray-600 hidden">
-                            <div 
-                                id="clone-content" 
-                                class="max-h-[200px] overflow-y-auto bg-gray-800 text-green-400 rounded p-2 font-mono text-xs whitespace-pre-wrap"
-                            ></div>
-                        </div>
                     </div>
                     <div id="step-analyze" class="border border-gray-200 rounded p-4 transition-all duration-300">
                         <div class="flex items-center">
@@ -238,12 +232,6 @@
                                 <span class="text-sm font-bold">2</span>
                             </div>
                             <span class="font-medium">分析结构</span>
-                        </div>
-                        <div id="step-analyze-content" class="mt-2 text-sm text-gray-600 hidden">
-                            <div 
-                                id="analyze-content" 
-                                class="max-h-[200px] overflow-y-auto bg-gray-800 text-green-400 rounded p-2 font-mono text-xs whitespace-pre-wrap"
-                            ></div>
                         </div>
                     </div>
                     <div id="step-generate" class="border border-gray-200 rounded p-4 transition-all duration-300">
@@ -253,12 +241,6 @@
                             </div>
                             <span class="font-medium">生成 Dockerfile</span>
                         </div>
-                        <div id="step-generate-content" class="mt-2 text-sm text-gray-600 hidden">
-                            <div 
-                                id="streaming-content" 
-                                class="max-h-[300px] overflow-y-auto bg-white border border-gray-200 rounded p-2 font-mono text-xs whitespace-pre-wrap"
-                            ></div>
-                        </div>
                     </div>
                     <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
                         <div class="flex items-center">
@@ -267,12 +249,13 @@
                             </div>
                             <span class="font-medium">构建镜像</span>
                         </div>
-                        <div id="step-build-content" class="mt-2 text-sm text-gray-600 hidden">
-                            <div 
-                                id="build-log-content" 
-                                class="max-h-[300px] overflow-y-auto bg-gray-800 text-green-400 rounded p-2 font-mono text-xs whitespace-pre-wrap"
-                            ></div>
-                        </div>
+                    </div>
+                </div>
+                
+                <!-- Content Display Area -->
+                <div id="content-display-area" class="mt-6">
+                    <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                        <div id="content-display" class="font-mono text-sm whitespace-pre-wrap break-words h-96 overflow-y-auto"></div>
                     </div>
                 </div>
 
@@ -632,38 +615,38 @@
                     case 'status':
                         showStatus(data.content);
                         // Update step status based on message content
+                        console.log('Processing status message:', data.content);
                         if (data.content.includes('克隆仓库')) {
+                            console.log('Updating clone step to active');
                             updateStepStatus('clone', 'active');
                             currentStep = 'clone';
-                        } else if (data.content.includes('分析仓库结构')) {
+                        } else if (data.content.includes('分析仓库结构') || data.content.includes('Analyzing repository structure')) {
+                            console.log('Updating clone step to completed and analyze step to active');
                             updateStepStatus('clone', 'completed');
                             updateStepStatus('analyze', 'active');
                             currentStep = 'analyze';
-                        } else if (data.content.includes('生成 Dockerfile')) {
+                        } else if (data.content.includes('生成 Dockerfile') || data.content.includes('Generating Dockerfile')) {
+                            console.log('Updating analyze step to completed and generate step to active');
                             updateStepStatus('analyze', 'completed');
                             updateStepStatus('generate', 'active');
                             currentStep = 'generate';
-                        } else if (data.content.includes('构建 Docker 镜像')) {
+                        } else if (data.content.includes('构建 Docker 镜像') || data.content.includes('Building Docker image')) {
+                            console.log('Updating generate step to completed and build step to active');
                             updateStepStatus('generate', 'completed');
                             updateStepStatus('build', 'active');
                             currentStep = 'build';
                         }
                         break;
                     case 'chunk':
-                        // Route chunk messages to appropriate steps
-                        if (currentStep === 'clone') {
-                            showStepContent('clone', data.content);
-                        } else if (currentStep === 'analyze') {
-                            showStepContent('analyze', data.content);
-                        } else if (currentStep === 'generate') {
-                            showStepContent('generate', data.content);
-                        }
+                        // 将所有chunk消息显示到独立的内容显示区域
+                        showStepContent('content', data.content);
                         break;
                     case 'stream_start':
                         showStatus('开始生成...');
                         break;
                     case 'build_log':
-                        showStepContent('build', data.content);
+                        // 将构建日志显示到独立的内容显示区域
+                        showStepContent('content', data.content);
                         break;
                     case 'error':
                         // Mark current step as failed
@@ -673,6 +656,7 @@
                         showError(data.content);
                         break;
                     case 'complete':
+                        console.log('Marking build step as completed');
                         updateStepStatus('build', 'completed');
                         showComplete(data.result);
                         break;
@@ -713,6 +697,9 @@
                 return;
             }
             
+            // Log current classes
+            console.log(`Current classes for step-${step}:`, stepElement.className);
+            
             // Remove all status classes
             stepElement.classList.remove('step-active', 'step-completed', 'step-failed');
             
@@ -727,6 +714,9 @@
                 stepElement.classList.add('step-failed');
                 console.log(`Step ${step} marked as failed`);
             }
+            
+            // Log updated classes
+            console.log(`Updated classes for step-${step}:`, stepElement.className);
         }
         
         // 新增函数：完成指定步骤之前的所有步骤
@@ -741,87 +731,50 @@
         }
         
         function showStepContent(step, content) {
-            const contentElement = document.getElementById(`step-${step}-content`);
-            if (contentElement) {
-                // For clone step, we use the clone-content div
-                if (step === 'clone') {
-                    const cloneContent = document.getElementById('clone-content');
-                    if (cloneContent) {
-                        cloneContent.innerHTML += content;
-                        cloneContent.parentElement.classList.remove('hidden');
-                        cloneContent.scrollTop = cloneContent.scrollHeight;
-                    }
-                } 
-                // For analyze step, we use the analyze-content div
-                else if (step === 'analyze') {
-                    const analyzeContent = document.getElementById('analyze-content');
-                    if (analyzeContent) {
-                        analyzeContent.innerHTML += content;
-                        analyzeContent.parentElement.classList.remove('hidden');
-                        analyzeContent.scrollTop = analyzeContent.scrollHeight;
-                    }
-                }
-                // For generate step, we use the streaming-content div
-                else if (step === 'generate') {
-                    const streamingContent = document.getElementById('streaming-content');
-                    if (streamingContent) {
-                        streamingContent.innerHTML += content;
-                        streamingContent.parentElement.classList.remove('hidden');
-                        streamingContent.scrollTop = streamingContent.scrollHeight;
-                    }
-                } 
-                // For build step, we use the build-log-content div
-                else if (step === 'build') {
-                    const buildLogContent = document.getElementById('build-log-content');
-                    if (buildLogContent) {
-                        buildLogContent.innerHTML += content;
-                        buildLogContent.parentElement.classList.remove('hidden');
-                        buildLogContent.scrollTop = buildLogContent.scrollHeight;
-                    }
-                }
-                
-                // Show the step container
-                contentElement.parentElement.classList.add('step-active');
+            // 将内容显示到独立的内容显示区域
+            const contentDisplay = document.getElementById('content-display');
+            if (contentDisplay) {
+                contentDisplay.innerHTML += content;
+                // 滚动到底部
+                contentDisplay.parentElement.scrollTop = contentDisplay.parentElement.scrollHeight;
             }
         }
         
         function appendStreamingContent(content) {
             // This function is kept for backward compatibility
-            const streamingContent = document.getElementById('streaming-content');
-            if (streamingContent) {
-                streamingContent.innerHTML += content;
-                // Auto-scroll to bottom
-                streamingContent.scrollTop = streamingContent.scrollHeight;
+            const contentDisplay = document.getElementById('content-display');
+            if (contentDisplay) {
+                contentDisplay.innerHTML += content;
+                // 滚动到底部
+                contentDisplay.parentElement.scrollTop = contentDisplay.parentElement.scrollHeight;
             }
         }
         
         function appendBuildLog(content) {
             // This function is kept for backward compatibility
-            const buildLogContent = document.getElementById('build-log-content');
-            if (buildLogContent) {
-                buildLogContent.innerHTML += content;
-                // Auto-scroll to bottom
-                buildLogContent.scrollTop = buildLogContent.scrollHeight;
+            const contentDisplay = document.getElementById('content-display');
+            if (contentDisplay) {
+                contentDisplay.innerHTML += content;
+                // 滚动到底部
+                contentDisplay.parentElement.scrollTop = contentDisplay.parentElement.scrollHeight;
             }
         }
         
         function showComplete(result) {
-            // Hide streaming container
-            const streamingContainer = document.getElementById('streaming-container');
-            if (streamingContainer) {
-                streamingContainer.style.display = 'none';
-            }
+            // 不再隐藏 streaming container，保持状态框可见
             
-            // Show results container
-            const resultsContainer = document.getElementById('results-container');
-            if (resultsContainer) {
-                resultsContainer.classList.remove('hidden');
-                resultsContainer.innerHTML = generateResultsHTML(result);
+            // 在内容显示区域下方显示结果
+            const contentDisplayArea = document.getElementById('content-display-area');
+            if (contentDisplayArea) {
+                const resultContainer = document.createElement('div');
+                resultContainer.className = 'mt-8';
+                resultContainer.innerHTML = generateResultsHTML(result);
+                contentDisplayArea.parentNode.insertBefore(resultContainer, contentDisplayArea.nextSibling);
                 
-                // Initialize Monaco editors for streaming results
+                // 初始化 Monaco 编辑器
                 setTimeout(() => {
                     require(['vs/editor/editor.main'], function() {
-                        const dockerfileEditorElement = document.getElementById('dockerfile-editor-stream');
+                        const dockerfileEditorElement = resultContainer.querySelector('#dockerfile-editor-stream');
                         if (dockerfileEditorElement) {
                             dockerfileEditor = monaco.editor.create(dockerfileEditorElement, {
                                 value: result.dockerfile || '# 无 Dockerfile 内容',
@@ -842,7 +795,7 @@
                         }
                         
                         if (result.docker_compose) {
-                            const composeEditorElement = document.getElementById('compose-editor-stream');
+                            const composeEditorElement = resultContainer.querySelector('#compose-editor-stream');
                             if (composeEditorElement) {
                                 composeEditor = monaco.editor.create(composeEditorElement, {
                                     value: result.docker_compose || '# 无 docker-compose 内容',
@@ -868,8 +821,12 @@
         }
         
         function showError(error) {
-            const contentDiv = document.getElementById('streaming-content');
-            contentDiv.innerHTML = '<div class="text-red-600 font-bold">错误: ' + error + '</div>';
+            const contentDisplay = document.getElementById('content-display');
+            if (contentDisplay) {
+                contentDisplay.innerHTML += '\n<div class="text-red-600 font-bold">错误: ' + error + '</div>\n';
+                // 滚动到底部
+                contentDisplay.parentElement.scrollTop = contentDisplay.parentElement.scrollHeight;
+            }
         }
         
         function generateResultsHTML(result) {

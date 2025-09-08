@@ -85,9 +85,10 @@ async def build_docker_image(
                     
                     print(f"Debug - Docker build process started with PID: {build_process.pid}")
                     
-                    # Stream the build output in real-time
+                    # Stream the build output in real-time with limit
                     build_log = ""
                     line_count = 0
+                    max_lines = 5000  # Limit the number of lines we collect
                     while True:
                         line = await build_process.stdout.readline()
                         if not line:
@@ -96,9 +97,19 @@ async def build_docker_image(
                         build_log += decoded_line
                         line_count += 1
                         
+                        # Limit the lines we collect to prevent memory issues
+                        if line_count > max_lines:
+                            if line_count == max_lines + 1:  # Only send this message once
+                                if websocket:
+                                    await _emit_ws_message(websocket, "build_log", f"\n... [Output truncated to {max_lines} lines] ...\n")
+                            continue
+                        
                         # Send each line to the WebSocket if available
                         if websocket:
-                            await _emit_ws_message(websocket, "build_log", decoded_line)
+                            # Check if WebSocket is still active before sending
+                            if not await _emit_ws_message(websocket, "build_log", decoded_line):
+                                print("WebSocket closed, stopping log streaming")
+                                break
                     
                     print(f"Debug - Docker build process finished. Read {line_count} lines of output")
                     
@@ -387,6 +398,11 @@ async def _emit_ws_message(websocket: Optional[Any], message_type: str, content:
     """
     if websocket is not None:
         try:
+            # Check if WebSocket is still open
+            if hasattr(websocket, 'client_state') and websocket.client_state.name != 'CONNECTED':
+                print(f"WebSocket is not connected. State: {websocket.client_state}")
+                return False
+                
             message = {
                 "type": message_type,
                 "content": content,

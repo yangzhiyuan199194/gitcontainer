@@ -285,12 +285,15 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     except WebSocketDisconnect:
         print(f"WebSocket disconnected for session {session_id}")
     except Exception as e:
-        print(f"Error in WebSocket endpoint: {e}")
+        error_msg = f"Unexpected error: {str(e)}"
+        print(error_msg)
+        # Check if websocket is still open before trying to send error message
         try:
-            await websocket.send_text(json.dumps({
-                "type": "error",
-                "content": f"Unexpected error: {str(e)}"
-            }))
+            if websocket.client_state.name == 'CONNECTED':
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "content": error_msg
+                }))
         except Exception as send_error:
             print(f"Could not send error message, WebSocket likely closed: {send_error}")
     finally:

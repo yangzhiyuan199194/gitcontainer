@@ -58,20 +58,33 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
             for attempt in range(5):  # Try up to 5 times
                 try:
                     # Change permissions to ensure we can delete
-                    if os.path.isdir(local_path):
-                        for root, dirs, files in os.walk(local_path):
-                            for d in dirs:
-                                os.chmod(os.path.join(root, d), 0o777)
-                            for f in files:
-                                os.chmod(os.path.join(root, f), 0o777)
-                        os.chmod(local_path, 0o777)
+                    # if os.path.isdir(local_path):
+                    #     for root, dirs, files in os.walk(local_path):
+                    #         for d in dirs:
+                    #             os.chmod(os.path.join(root, d), 0o777)
+                    #         for f in files:
+                    #             os.chmod(os.path.join(root, f), 0o777)
+                    #     os.chmod(local_path, 0o777)
                     
                     shutil.rmtree(local_path)
                     
                     # Wait and verify deletion
-                    time.sleep(0.2)
+                    time.sleep(0.5)  # Increase wait time
                     if not os.path.exists(local_path):
+                        if websocket:
+                            await websocket.send_text(json.dumps({
+                                "type": "status",
+                                "content": f"✅ Successfully removed existing directory"
+                            }))
+                        # Add extra wait to ensure file system operations are completed
+                        time.sleep(0.5)
                         break
+                    else:
+                        if websocket:
+                            await websocket.send_text(json.dumps({
+                                "type": "status",
+                                "content": f"⚠️  Directory still exists after deletion attempt {attempt + 1}"
+                            }))
                         
                     # If still exists, try again
                     if attempt == 4:  # Last attempt
@@ -81,6 +94,11 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
                             "url": github_url
                         }
                 except PermissionError as e:
+                    if websocket:
+                        await websocket.send_text(json.dumps({
+                            "type": "status",
+                            "content": f"⚠️  Permission denied on attempt {attempt + 1}: {str(e)}"
+                        }))
                     if attempt == 4:  # Last attempt
                         return {
                             "success": False,
@@ -89,6 +107,11 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
                         }
                     time.sleep(0.5)  # Wait before retrying
                 except Exception as e:
+                    if websocket:
+                        await websocket.send_text(json.dumps({
+                            "type": "status",
+                            "content": f"⚠️  Error on attempt {attempt + 1}: {str(e)}"
+                        }))
                     if attempt == 4:  # Last attempt
                         return {
                             "success": False,
@@ -96,9 +119,9 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
                             "url": github_url
                         }
                     time.sleep(0.5)  # Wait before retrying
-        
-        # Clone the repository using git command
-        clone_command = f"git clone {github_url} {local_path}"
+            # If we're here, it means we successfully removed the directory
+            # Wait a bit more to ensure file system operations are completed
+            time.sleep(0.5)
         
         # Clone the repository using git command
         clone_command = f"git clone {github_url} {local_path}"
@@ -168,9 +191,10 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
                 "message": f"Successfully cloned {owner}/{repo_name} to {local_path}"
             }
         else:
+            error_message = "\n".join(stderr_lines) if stderr_lines else "Clone failed"
             return {
                 "success": False,
-                "error": stderr.decode('utf-8') if stderr else "Clone failed",
+                "error": error_message,
                 "url": github_url
             }
             
