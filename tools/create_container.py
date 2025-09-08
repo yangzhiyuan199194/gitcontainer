@@ -11,10 +11,10 @@ load_dotenv()
 
 
 async def build_docker_image(
-    dockerfile_content: str,
-    project_name: str,
-    local_path: str,
-    websocket: Optional[Any] = None
+        dockerfile_content: str,
+        project_name: str,
+        local_path: str,
+        websocket: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     Build a Docker image from the provided Dockerfile content.
@@ -33,16 +33,16 @@ async def build_docker_image(
         import shutil
         import subprocess
         from pathlib import Path
-        
+
         # Create a temporary directory for building
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            
+
             # Write the Dockerfile
             dockerfile_path = temp_path / "Dockerfile"
             with open(dockerfile_path, "w", encoding="utf-8") as f:
                 f.write(dockerfile_content)
-            
+
             # Copy project files to temp directory (excluding .git)
             if os.path.exists(local_path):
                 for item in os.listdir(local_path):
@@ -53,12 +53,12 @@ async def build_docker_image(
                             shutil.copytree(src, dst)
                         else:
                             shutil.copy2(src, dst)
-            
+
             # Generate image tag (use project name and timestamp)
             import time
             timestamp = int(time.time())
             image_tag = f"{project_name.lower().replace('/', '-')}:{timestamp}"
-            
+
             # Try to build the Docker image with retry mechanism
             max_retries = 3
             for attempt in range(max_retries):
@@ -67,31 +67,32 @@ async def build_docker_image(
                     build_args = ["docker", "build", "-t", image_tag, "."]
                     if attempt > 0:
                         build_args.insert(2, "--no-cache")
-                    
+
                     # Send status message about the build attempt
                     if websocket:
-                        await _emit_ws_message(websocket, "status", f"🔨 正在构建 Docker 镜像 (尝试 {attempt + 1}/{max_retries})...")
+                        await _emit_ws_message(websocket, "status",
+                                               f"🔨 正在构建 Docker 镜像 (尝试 {attempt + 1}/{max_retries})...")
                         await _emit_ws_message(websocket, "build_log", f"🚀 开始构建 Docker 镜像: {image_tag}\n")
                         await _emit_ws_message(websocket, "build_log", f"📂 构建目录: {temp_dir}\n")
                         await _emit_ws_message(websocket, "build_log", f"🏗️ 构建命令: {' '.join(build_args)}\n")
                         await _emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
-                    
+
                     build_process = await asyncio.create_subprocess_exec(
                         *build_args,
                         cwd=temp_dir,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.STDOUT  # Combine stderr with stdout
                     )
-                    
+
                     print(f"Debug - Docker build process started with PID: {build_process.pid}")
-                    
+
                     # Stream the build output in real-time with limit
                     build_log = ""
                     line_count = 0
                     max_lines = 10000  # Increase limit to 10000 lines
                     error_lines = []  # Store error-related lines
                     collecting_error_context = 0  # Number of lines to collect after an error line
-                    
+
                     while True:
                         line = await build_process.stdout.readline()
                         if not line:
@@ -99,40 +100,42 @@ async def build_docker_image(
                         decoded_line = line.decode('utf-8')
                         build_log += decoded_line
                         line_count += 1
-                        
+
                         # Check if this line contains error indicators
-                        if any(keyword in decoded_line.lower() for keyword in ['error', 'failed', 'exception', 'invalid', 'cannot', 'could not']):
+                        if any(keyword in decoded_line.lower() for keyword in
+                               ['error', 'failed', 'exception', 'invalid', 'cannot', 'could not']):
                             error_lines.append(decoded_line)
                             collecting_error_context = 20  # Collect 20 more lines after error
                         elif collecting_error_context > 0:
                             error_lines.append(decoded_line)
                             collecting_error_context -= 1
-                        
+
                         # Limit the lines we collect to prevent memory issues
                         if line_count > max_lines:
                             if line_count == max_lines + 1:  # Only send this message once
                                 if websocket:
-                                    await _emit_ws_message(websocket, "build_log", f"\n... [Output truncated to {max_lines} lines] ...\n")
-                                    
+                                    await _emit_ws_message(websocket, "build_log",
+                                                           f"\n... [Output truncated to {max_lines} lines] ...\n")
+
                                     # Send important error lines if we have any
                                     if error_lines:
                                         await _emit_ws_message(websocket, "build_log", f"\n[关键错误信息摘要]:\n")
                                         for error_line in error_lines[-50:]:  # Send last 50 error lines
                                             await _emit_ws_message(websocket, "build_log", error_line)
                             continue
-                        
+
                         # Send each line to the WebSocket if available
                         if websocket:
                             # Check if WebSocket is still active before sending
                             if not await _emit_ws_message(websocket, "build_log", decoded_line):
                                 print("WebSocket closed, stopping log streaming")
                                 break
-                    
+
                     print(f"Debug - Docker build process finished. Read {line_count} lines of output")
-                    
+
                     await build_process.wait()
                     print(f"Debug - Docker build process return code: {build_process.returncode}")
-                    
+
                     if build_process.returncode == 0:
                         if websocket:
                             await _emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
@@ -147,13 +150,16 @@ async def build_docker_image(
                         error_output = build_log if build_log else "Docker build failed"
                         # Include error lines if we have them
                         if error_lines:
-                            error_output = "[关键错误信息]:\n" + "".join(error_lines[-100:]) + "\n\n[完整日志摘要(最后100行)]:\n" + "\n".join(build_log.split('\n')[-100:]) if build_log else error_output
-                        
+                            error_output = "[关键错误信息]:\n" + "".join(
+                                error_lines[-100:]) + "\n\n[完整日志摘要(最后100行)]:\n" + "\n".join(
+                                build_log.split('\n')[-100:]) if build_log else error_output
+
                         # If this is the last attempt, return the error
                         if attempt == max_retries - 1:
                             if websocket:
                                 await _emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
-                                await _emit_ws_message(websocket, "build_log", f"❌ 镜像构建失败 (已重试 {max_retries} 次)\n")
+                                await _emit_ws_message(websocket, "build_log",
+                                                       f"❌ 镜像构建失败 (已重试 {max_retries} 次)\n")
                             return {
                                 "success": False,
                                 "error": error_output,
@@ -163,7 +169,8 @@ async def build_docker_image(
                         else:
                             if websocket:
                                 await _emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
-                                await _emit_ws_message(websocket, "build_log", f"⚠️ 构建失败，正在重试... (尝试 {attempt + 1}/{max_retries})\n")
+                                await _emit_ws_message(websocket, "build_log",
+                                                       f"⚠️ 构建失败，正在重试... (尝试 {attempt + 1}/{max_retries})\n")
                         # Otherwise, continue to retry
                 except Exception as e:
                     if attempt == max_retries - 1:
@@ -172,19 +179,19 @@ async def build_docker_image(
                             "error": f"Failed to execute docker build command: {str(e)}",
                             "image_tag": image_tag
                         }
-            
+
             # This should not be reached, but just in case
             return {
                 "success": False,
                 "error": "Maximum retry attempts reached",
                 "image_tag": image_tag
             }
-                
+
     except Exception as e:
         # 记录详细的异常信息用于调试，但不暴露给用户
         import logging
         logging.exception("Failed to build Docker image")
-        
+
         return {
             "success": False,
             "error": "Failed to build Docker image due to an internal error",
@@ -193,13 +200,13 @@ async def build_docker_image(
 
 
 async def create_container_tool(
-    gitingest_summary: str,
-    gitingest_tree: str,
-    gitingest_content: str,
-    project_name: Optional[str] = None,
-    additional_instructions: Optional[str] = None,
-    max_context_chars: int = 50000,  # Limit to stay within context window
-    websocket: Optional[Any] = None  # WebSocket connection for streaming
+        gitingest_summary: str,
+        gitingest_tree: str,
+        gitingest_content: str,
+        project_name: Optional[str] = None,
+        additional_instructions: Optional[str] = None,
+        max_context_chars: int = 50000,  # Limit to stay within context window
+        websocket: Optional[Any] = None  # WebSocket connection for streaming
 ) -> Dict[str, Any]:
     """
     Generate a Dockerfile using OpenAI API based on gitingest context.
@@ -221,22 +228,23 @@ async def create_container_tool(
         api_key = os.getenv("OPENAI_API_KEY")
         base_url = os.getenv("BASE_URL")
         inf_api_key = os.getenv("INF_API_KEY")
+        model = os.getenv("MODEL", "gpt-4o-mini")
 
         if not api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
-        
-        client = AsyncOpenAI(api_key=inf_api_key,base_url=base_url)
-        
+
+        client = AsyncOpenAI(api_key=inf_api_key, base_url=base_url)
+
         # Truncate content if it exceeds max context to avoid hitting limits
         truncated_content = gitingest_content
         if len(gitingest_content) > max_context_chars:
             truncated_content = gitingest_content[:max_context_chars] + "\n\n... [Content truncated due to length] ..."
-        
+
         # Create the prompt for Dockerfile generation
         additional_instructions_section = ""
         if additional_instructions and additional_instructions.strip():
             additional_instructions_section = f"\n\nADDITIONAL INSTRUCTIONS:\n{additional_instructions.strip()}"
-        
+
         prompt = f"""Based on the following repository analysis, generate a comprehensive and production-ready Dockerfile.
 
 PROJECT SUMMARY:
@@ -276,7 +284,7 @@ Required JSON format:
         websocket_active = await _emit_ws_message(websocket, "status", "🐳 Generating Dockerfile...")
         if websocket_active:
             print("🐳 Generating Dockerfile... (streaming response)\n")
-        
+
         messages = [
             {
                 "role": "system",
@@ -287,38 +295,38 @@ Required JSON format:
                 "content": prompt
             }
         ]
-        
+
         print("Debug - About to make API call")
-        print(f"Debug - Model: gpt-4o-mini")
+        print(f"Debug - Model: " + model)
         print(f"Debug - Messages count: {len(messages)}")
         print(f"Debug - Temperature: 0.3")
         print(f"Debug - Max tokens: 2000")
         print(f"Debug - Stream: True")
-        
+
         try:
             response = await client.chat.completions.create(
-                model="gpt-4o-mini",  # Using GPT-4 for better code generation
+                model=model,  # Using GPT-4 for better code generation
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more consistent output
-                max_tokens=2000,   # Sufficient for Dockerfile generation
-                stream=True,       # Enable streaming
+                max_tokens=2000,  # Sufficient for Dockerfile generation
+                stream=True,  # Enable streaming
                 extra_headers={'apikey': api_key} if api_key else None,
             )
-            
+
             print("Debug - API call initiated successfully")
         except Exception as e:
             print(f"Debug - API call failed with error: {str(e)}")
             raise e
-        
+
         # Collect the streaming response and print in real-time
         dockerfile_response = ""
         if websocket_active:
             websocket_active = await _emit_ws_message(websocket, "stream_start", "Starting generation...")
         print("📝 Response:")
         print("-" * 50)
-        
+
         async for chunk in response:
-            if len(chunk.choices) > 0 :
+            if len(chunk.choices) > 0:
                 if chunk.choices[0].delta.content is not None:
                     content = chunk.choices[0].delta.content
                     print(content, end="", flush=True)
@@ -326,12 +334,12 @@ Required JSON format:
                     # Only emit chunks if WebSocket is still active
                     if websocket_active:
                         websocket_active = await _emit_ws_message(websocket, "chunk", content)
-        
+
         print("\n" + "-" * 50)
         print("✅ Generation complete!\n")
         if websocket_active:
             await _emit_ws_message(websocket, "status", "✅ Generation complete!")
-        
+
         # Try to parse as JSON, fallback to plain text if needed
         try:
             # First try direct JSON parsing
@@ -361,16 +369,23 @@ Required JSON format:
                     in_dockerfile = False
                     for line in lines:
                         stripped = line.strip()
-                        if stripped.startswith('FROM ') or stripped.startswith('RUN ') or stripped.startswith('COPY ') or stripped.startswith('WORKDIR ') or stripped.startswith('EXPOSE ') or stripped.startswith('CMD ') or stripped.startswith('ENTRYPOINT '):
+                        if stripped.startswith('FROM ') or stripped.startswith('RUN ') or stripped.startswith(
+                                'COPY ') or stripped.startswith('WORKDIR ') or stripped.startswith(
+                                'EXPOSE ') or stripped.startswith('CMD ') or stripped.startswith('ENTRYPOINT '):
                             in_dockerfile = True
                             dockerfile_lines.append(line)
-                        elif in_dockerfile and (stripped.startswith('#') or stripped == '' or stripped.startswith('ENV ') or stripped.startswith('ARG ') or stripped.startswith('USER ') or stripped.startswith('VOLUME ') or stripped.startswith('LABEL ')):
+                        elif in_dockerfile and (stripped.startswith('#') or stripped == '' or stripped.startswith(
+                                'ENV ') or stripped.startswith('ARG ') or stripped.startswith(
+                                'USER ') or stripped.startswith('VOLUME ') or stripped.startswith('LABEL ')):
                             dockerfile_lines.append(line)
                         elif in_dockerfile and not stripped:
                             dockerfile_lines.append(line)
-                        elif in_dockerfile and stripped and not any(stripped.startswith(cmd) for cmd in ['FROM', 'RUN', 'COPY', 'WORKDIR', 'EXPOSE', 'CMD', 'ENTRYPOINT', 'ENV', 'ARG', 'USER', 'VOLUME', 'LABEL', '#']):
+                        elif in_dockerfile and stripped and not any(stripped.startswith(cmd) for cmd in
+                                                                    ['FROM', 'RUN', 'COPY', 'WORKDIR', 'EXPOSE', 'CMD',
+                                                                     'ENTRYPOINT', 'ENV', 'ARG', 'USER', 'VOLUME',
+                                                                     'LABEL', '#']):
                             break
-                    
+
                     if dockerfile_lines:
                         dockerfile_content = '\n'.join(dockerfile_lines).strip()
 
@@ -382,7 +397,7 @@ Required JSON format:
                     "additional_notes": "Response was not in expected JSON format",
                     "docker_compose_suggestion": None
                 }
-        
+
         return {
             "success": True,
             "dockerfile": dockerfile_data.get("dockerfile", ""),
@@ -396,7 +411,7 @@ Required JSON format:
             "original_content_length": len(gitingest_content),
             "used_content_length": len(truncated_content)
         }
-        
+
     except Exception as e:
         error_result = {
             "success": False,
@@ -423,7 +438,7 @@ async def _emit_ws_message(websocket: Optional[Any], message_type: str, content:
             if hasattr(websocket, 'client_state') and websocket.client_state.name != 'CONNECTED':
                 print(f"WebSocket is not connected. State: {websocket.client_state}")
                 return False
-                
+
             message = {
                 "type": message_type,
                 "content": content,
@@ -439,12 +454,12 @@ async def _emit_ws_message(websocket: Optional[Any], message_type: str, content:
 
 
 def run_create_container(
-    gitingest_summary: str,
-    gitingest_tree: str,
-    gitingest_content: str,
-    project_name: Optional[str] = None,
-    additional_instructions: Optional[str] = None,
-    websocket: Optional[Any] = None
+        gitingest_summary: str,
+        gitingest_tree: str,
+        gitingest_content: str,
+        project_name: Optional[str] = None,
+        additional_instructions: Optional[str] = None,
+        websocket: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     Synchronous wrapper for the create_container tool.
