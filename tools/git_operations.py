@@ -162,7 +162,7 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
             if websocket and line_str:
                 await websocket.send_text(json.dumps({
                     "type": "chunk",
-                    "content": f"[CLONE ERROR] {line_str}\n"
+                    "content": f"[CLONE] {line_str}\n"
                 }))
         
         await process.wait()

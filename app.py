@@ -153,6 +153,7 @@ async def generate_dockerfile(
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     """WebSocket endpoint for streaming Dockerfile generation."""
     await websocket.accept()
+    print(f"New WebSocket connection: {session_id}")
     
     try:
         if session_id not in sessions:
