@@ -88,7 +88,10 @@ async def build_docker_image(
                     # Stream the build output in real-time with limit
                     build_log = ""
                     line_count = 0
-                    max_lines = 5000  # Limit the number of lines we collect
+                    max_lines = 10000  # Increase limit to 10000 lines
+                    error_lines = []  # Store error-related lines
+                    collecting_error_context = 0  # Number of lines to collect after an error line
+                    
                     while True:
                         line = await build_process.stdout.readline()
                         if not line:
@@ -97,11 +100,25 @@ async def build_docker_image(
                         build_log += decoded_line
                         line_count += 1
                         
+                        # Check if this line contains error indicators
+                        if any(keyword in decoded_line.lower() for keyword in ['error', 'failed', 'exception', 'invalid', 'cannot', 'could not']):
+                            error_lines.append(decoded_line)
+                            collecting_error_context = 20  # Collect 20 more lines after error
+                        elif collecting_error_context > 0:
+                            error_lines.append(decoded_line)
+                            collecting_error_context -= 1
+                        
                         # Limit the lines we collect to prevent memory issues
                         if line_count > max_lines:
                             if line_count == max_lines + 1:  # Only send this message once
                                 if websocket:
                                     await _emit_ws_message(websocket, "build_log", f"\n... [Output truncated to {max_lines} lines] ...\n")
+                                    
+                                    # Send important error lines if we have any
+                                    if error_lines:
+                                        await _emit_ws_message(websocket, "build_log", f"\n[关键错误信息摘要]:\n")
+                                        for error_line in error_lines[-50:]:  # Send last 50 error lines
+                                            await _emit_ws_message(websocket, "build_log", error_line)
                             continue
                         
                         # Send each line to the WebSocket if available
@@ -128,6 +145,10 @@ async def build_docker_image(
                         }
                     else:
                         error_output = build_log if build_log else "Docker build failed"
+                        # Include error lines if we have them
+                        if error_lines:
+                            error_output = "[关键错误信息]:\n" + "".join(error_lines[-100:]) + "\n\n[完整日志摘要(最后100行)]:\n" + "\n".join(build_log.split('\n')[-100:]) if build_log else error_output
+                        
                         # If this is the last attempt, return the error
                         if attempt == max_retries - 1:
                             if websocket:
