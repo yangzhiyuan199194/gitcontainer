@@ -256,6 +256,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "type": "build_log",
                     "content": f"❌ Docker 镜像构建失败: {build_result.get('error', 'Unknown error')}\n"
                 }))
+                # 发送错误消息，确保前端能正确更新步骤状态
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "content": f"Docker 镜像构建失败: {build_result.get('error', 'Unknown error')}"
+                }))
         
         # Send final result
         final_result = {

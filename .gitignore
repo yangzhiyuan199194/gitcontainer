@@ -196,3 +196,5 @@ cython_debug/
 hosting/
 
 .idea
+
+proxy

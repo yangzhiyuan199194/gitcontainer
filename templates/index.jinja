@@ -715,7 +715,11 @@
                         break;
                     case 'complete':
                         console.log('Marking build step as completed');
-                        updateStepStatus('build', 'completed');
+                        // 只有在构建成功时才将build步骤标记为completed
+                        // 检查result中的image_build是否成功
+                        if (data.result && data.result.image_build && data.result.image_build.success) {
+                            updateStepStatus('build', 'completed');
+                        }
                         // 添加完成分隔符
                         showStepContent('content', '\n[任务完成]\n' + '='.repeat(50) + '\n');
                         // 确保在DOM更新完成后显示结果
@@ -950,7 +954,6 @@
                         html += '<h4 class="font-medium text-gray-700 mb-2">构建日志:</h4>';
                         html += '<div class="bg-gray-800 text-red-400 p-3 rounded font-mono text-xs overflow-auto max-h-40">';
                         html += result.image_build.build_log;
-                        html += '</div>';
                         html += '</div>';
                     }
                     
