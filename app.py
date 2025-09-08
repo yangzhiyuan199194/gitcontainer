@@ -3,14 +3,16 @@
 import asyncio
 import json
 import os
+from pathlib import Path
+
+from api_analytics.fastapi import Analytics
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Form, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pathlib import Path
+
 from tools import gitingest_tool, clone_repo_tool, create_container_tool, build_docker_image
-from api_analytics.fastapi import Analytics
 
 # Load environment variables
 load_dotenv()
