@@ -2,6 +2,8 @@ import asyncio
 import os
 from typing import Dict, Any, Optional
 
+from tools.utils import emit_ws_message
+
 
 async def build_docker_image(
         dockerfile_content: str,
@@ -63,12 +65,12 @@ async def build_docker_image(
 
                     # Send status message about the build attempt
                     if websocket:
-                        await _emit_ws_message(websocket, "status",
+                        await emit_ws_message(websocket, "status",
                                                f"🔨 正在构建 Docker 镜像 (尝试 {attempt + 1}/{max_retries})...")
-                        await _emit_ws_message(websocket, "build_log", f"🚀 开始构建 Docker 镜像: {image_tag}\n")
-                        await _emit_ws_message(websocket, "build_log", f"📂 构建目录: {temp_dir}\n")
-                        await _emit_ws_message(websocket, "build_log", f"🏗️ 构建命令: {' '.join(build_args)}\n")
-                        await _emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
+                        await emit_ws_message(websocket, "build_log", f"🚀 开始构建 Docker 镜像: {image_tag}\n")
+                        await emit_ws_message(websocket, "build_log", f"📂 构建目录: {temp_dir}\n")
+                        await emit_ws_message(websocket, "build_log", f"🏗️ 构建命令: {' '.join(build_args)}\n")
+                        await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
 
                     build_process = await asyncio.create_subprocess_exec(
                         *build_args,
@@ -107,20 +109,20 @@ async def build_docker_image(
                         if line_count > max_lines:
                             if line_count == max_lines + 1:  # Only send this message once
                                 if websocket:
-                                    await _emit_ws_message(websocket, "build_log",
+                                    await emit_ws_message(websocket, "build_log",
                                                            f"\n... [Output truncated to {max_lines} lines] ...\n")
 
                                     # Send important error lines if we have any
                                     if error_lines:
-                                        await _emit_ws_message(websocket, "build_log", f"\n[关键错误信息摘要]:\n")
+                                        await emit_ws_message(websocket, "build_log", f"\n[关键错误信息摘要]:\n")
                                         for error_line in error_lines[-50:]:  # Send last 50 error lines
-                                            await _emit_ws_message(websocket, "build_log", error_line)
+                                            await emit_ws_message(websocket, "build_log", error_line)
                             continue
 
                         # Send each line to the WebSocket if available
                         if websocket:
                             # Check if WebSocket is still active before sending
-                            if not await _emit_ws_message(websocket, "build_log", decoded_line):
+                            if not await emit_ws_message(websocket, "build_log", decoded_line):
                                 print("WebSocket closed, stopping log streaming")
                                 break
 
@@ -131,8 +133,8 @@ async def build_docker_image(
 
                     if build_process.returncode == 0:
                         if websocket:
-                            await _emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
-                            await _emit_ws_message(websocket, "build_log", f"✅ 镜像构建成功: {image_tag}\n")
+                            await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
+                            await emit_ws_message(websocket, "build_log", f"✅ 镜像构建成功: {image_tag}\n")
                         return {
                             "success": True,
                             "image_tag": image_tag,
@@ -150,8 +152,8 @@ async def build_docker_image(
                         # If this is the last attempt, return the error
                         if attempt == max_retries - 1:
                             if websocket:
-                                await _emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
-                                await _emit_ws_message(websocket, "build_log",
+                                await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
+                                await emit_ws_message(websocket, "build_log",
                                                        f"❌ 镜像构建失败 (已重试 {max_retries} 次)\n")
                             return {
                                 "success": False,
@@ -161,8 +163,8 @@ async def build_docker_image(
                             }
                         else:
                             if websocket:
-                                await _emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
-                                await _emit_ws_message(websocket, "build_log",
+                                await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
+                                await emit_ws_message(websocket, "build_log",
                                                        f"⚠️ 构建失败，正在重试... (尝试 {attempt + 1}/{max_retries})\n")
                         # Otherwise, continue to retry
                 except Exception as e:

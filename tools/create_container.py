@@ -7,6 +7,8 @@ from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
+from tools.utils import emit_ws_message
+
 # Load environment variables
 load_dotenv()
 
@@ -92,7 +94,7 @@ Required JSON format:
 }}"""
 
         # Make API call to generate Dockerfile with streaming
-        websocket_active = await _emit_ws_message(websocket, "status", "🐳 Generating Dockerfile...")
+        websocket_active = await emit_ws_message(websocket, "status", "🐳 Generating Dockerfile...")
         if websocket_active:
             print("🐳 Generating Dockerfile... (streaming response)\n")
 
@@ -132,7 +134,7 @@ Required JSON format:
         # Collect the streaming response and print in real-time
         dockerfile_response = ""
         if websocket_active:
-            websocket_active = await _emit_ws_message(websocket, "stream_start", "Starting generation...")
+            websocket_active = await emit_ws_message(websocket, "stream_start", "Starting generation...")
         print("📝 Response:")
         print("-" * 50)
 
@@ -144,12 +146,12 @@ Required JSON format:
                     dockerfile_response += content
                     # Only emit chunks if WebSocket is still active
                     if websocket_active:
-                        websocket_active = await _emit_ws_message(websocket, "chunk", content)
+                        websocket_active = await emit_ws_message(websocket, "chunk", content)
 
         print("\n" + "-" * 50)
         print("✅ Generation complete!\n")
         if websocket_active:
-            await _emit_ws_message(websocket, "status", "✅ Generation complete!")
+            await emit_ws_message(websocket, "status", "✅ Generation complete!")
 
         # Try to parse as JSON, fallback to plain text if needed
         try:
@@ -231,37 +233,13 @@ Required JSON format:
         }
         # Only send error message if WebSocket might still be active
         try:
-            await _emit_ws_message(websocket, "error", str(e))
+            await emit_ws_message(websocket, "error", str(e))
         except:
             # WebSocket is definitely closed, just log the error
             print(f"Could not send error to WebSocket: {e}")
         return error_result
 
 
-async def _emit_ws_message(websocket: Optional[Any], message_type: str, content: str) -> bool:
-    """
-    Helper function to emit WebSocket messages safely.
-    Returns True if message was sent successfully, False if WebSocket is closed or error occurred.
-    """
-    if websocket is not None:
-        try:
-            # Check if WebSocket is still open
-            if hasattr(websocket, 'client_state') and websocket.client_state.name != 'CONNECTED':
-                print(f"WebSocket is not connected. State: {websocket.client_state}")
-                return False
-
-            message = {
-                "type": message_type,
-                "content": content,
-                "timestamp": asyncio.get_event_loop().time()
-            }
-            await websocket.send_text(json.dumps(message))
-            return True
-        except Exception as e:
-            # WebSocket is likely closed, stop trying to send messages
-            print(f"WebSocket closed or error occurred: {e}")
-            return False
-    return False
 
 
 def run_create_container(
