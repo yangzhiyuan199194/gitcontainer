@@ -97,6 +97,42 @@
         .main-container {
             width: 80%;
         }
+        /* Model selector styles */
+        .model-selector {
+            position: relative;
+            display: inline-block;
+        }
+        .model-selector select {
+            appearance: none;
+            background-color: #fff;
+            border: 1px solid #D1D5DB;
+            border-radius: 0.375rem;
+            padding: 0.5rem 2.5rem 0.5rem 1rem;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            color: #374151;
+            cursor: pointer;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+        }
+        .model-selector select:focus {
+            outline: none;
+            border-color: #4A90E2;
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+        }
+        .model-selector label {
+            position: absolute;
+            top: -0.5rem;
+            left: 0.75rem;
+            background-color: #fff;
+            padding: 0 0.25rem;
+            font-size: 0.75rem;
+            color: #4A90E2;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col">
@@ -108,6 +144,16 @@
                     <span class="text-gray-900">启智</span><span class="text-[#4A90E2]">自动化构建</span>
                 </a>
             </h1>
+            {% if available_models and available_models|length > 1 %}
+            <div class="model-selector">
+                <label for="model-select">AI 模型</label>
+                <select id="model-select" name="model" class="model-select" onchange="updateModel(this.value)">
+                    {% for model in available_models %}
+                    <option value="{{ model }}" {% if model == current_model %}selected{% endif %}>{{ model }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
         </div>
     </header>
 
@@ -164,6 +210,7 @@
                         </button>
                     </div>
                     <input type="hidden" name="additional_instructions_hidden" id="additional_instructions_hidden" value="">
+                    <input type="hidden" name="model" id="model_hidden" value="{{ current_model }}">
                 </form>
                 
                 <!-- Examples and Additional instructions row -->
@@ -476,6 +523,13 @@
             }
         }
 
+        // Update model hidden field when model is changed
+        function updateModel(model) {
+            document.getElementById('model_hidden').value = model;
+            // Save user's model preference to localStorage
+            localStorage.setItem('selectedModel', model);
+        }
+
         // Prepare form submission by copying additional instructions to hidden input
         function prepareFormSubmit(event) {
             const checkbox = document.getElementById('show_instructions');
@@ -490,6 +544,25 @@
             
             // Allow form to submit normally
             return true;
+        }
+
+        // Set the model selector to the user's previously selected model
+        function setModelFromCache() {
+            const savedModel = localStorage.getItem('selectedModel');
+            if (savedModel) {
+                const modelSelector = document.getElementById('model-select');
+                if (modelSelector) {
+                    // Check if the saved model is in the available options
+                    const options = Array.from(modelSelector.options);
+                    const modelExists = options.some(option => option.value === savedModel);
+                    
+                    if (modelExists) {
+                        modelSelector.value = savedModel;
+                        // Also update the hidden field
+                        document.getElementById('model_hidden').value = savedModel;
+                    }
+                }
+            }
         }
 
         // Monaco Editor setup
@@ -1079,6 +1152,9 @@
             if (composeContainer) {
                 console.log('Compose 容器已找到:', composeContainer.offsetWidth, 'x', composeContainer.offsetHeight);
             }
+            
+            // Set model selector to user's cached preference
+            setModelFromCache();
             
             // For non-streaming results, initialize editors immediately
             {% if result and not streaming %}

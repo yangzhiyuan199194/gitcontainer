@@ -62,13 +62,25 @@ async def apple_touch_icon():
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Home page with the input form."""
+    # Get available models from environment variable
+    available_models_str = os.getenv("AVAILABLE_MODELS", "")
+    available_models = [model.strip() for model in available_models_str.split(",") if model.strip()]
+    
+    # Get current model - first from available models, or fallback to environment or default
+    if available_models:
+        current_model = available_models[0]  # Default to first available model
+    else:
+        current_model = os.getenv("MODEL", "gpt-4o-mini")
+    
     return templates.TemplateResponse("index.jinja", {
         "request": request,
         "repo_url": "",
         "loading": False,
         "streaming": False,
         "result": None,
-        "error": None
+        "error": None,
+        "available_models": available_models,
+        "current_model": current_model
     })
 
 
@@ -88,6 +100,16 @@ async def dynamic_github_route(request: Request, path: str):
     
     # Check if we have at least 2 segments (username/repo)
     if len(segments) < 2:
+        # Get available models from environment variable
+        available_models_str = os.getenv("AVAILABLE_MODELS", "")
+        available_models = [model.strip() for model in available_models_str.split(",") if model.strip()]
+        
+        # Get current model - first from available models, or fallback to environment or default
+        if available_models:
+            current_model = available_models[0]  # Default to first available model
+        else:
+            current_model = os.getenv("MODEL", "gpt-4o-mini")
+        
         return templates.TemplateResponse("index.jinja", {
             "request": request,
             "repo_url": "",
@@ -95,12 +117,24 @@ async def dynamic_github_route(request: Request, path: str):
             "streaming": False,
             "result": None,
             "error": f"Invalid GitHub URL format. Expected format: gitcontainer.com/username/repository",
-            "pre_filled": False
+            "pre_filled": False,
+            "available_models": available_models,
+            "current_model": current_model
         })
     
     # Use only the first two segments (username/repo)
     username, repo = segments[0], segments[1]
     github_url = f"https://github.com/{username}/{repo}"
+    
+    # Get available models from environment variable
+    available_models_str = os.getenv("AVAILABLE_MODELS", "")
+    available_models = [model.strip() for model in available_models_str.split(",") if model.strip()]
+    
+    # Get current model - first from available models, or fallback to environment or default
+    if available_models:
+        current_model = available_models[0]  # Default to first available model
+    else:
+        current_model = os.getenv("MODEL", "gpt-4o-mini")
     
     return templates.TemplateResponse("index.jinja", {
         "request": request,
@@ -109,7 +143,9 @@ async def dynamic_github_route(request: Request, path: str):
         "streaming": False,
         "result": None,
         "error": None,
-        "pre_filled": True
+        "pre_filled": True,
+        "available_models": available_models,
+        "current_model": current_model
     })
 
 
@@ -118,28 +154,32 @@ async def dynamic_github_route_post(
     request: Request,
     path: str,
     repo_url: str = Form(...),
-    additional_instructions_hidden: str = Form("")
+    additional_instructions_hidden: str = Form(""),
+    model: str = Form(None)
 ):
     """Handle POST requests for GitHub-style URLs, reusing the generate_dockerfile logic."""
-    return await generate_dockerfile(request, repo_url, additional_instructions_hidden)
-
-
-@app.post("/", response_class=HTMLResponse) 
-async def generate_dockerfile(
-    request: Request, 
-    repo_url: str = Form(...),
-    additional_instructions_hidden: str = Form("")
-):
-    """Redirect to streaming page for Dockerfile generation."""
-    # Store the repo URL and additional instructions in a session (simple in-memory for demo)
+    # Store the repo URL, additional instructions, and model in a session
     session_id = str(hash(repo_url + str(asyncio.get_event_loop().time())))
     sessions[session_id] = {
         "repo_url": repo_url,
         "additional_instructions": additional_instructions_hidden.strip() if additional_instructions_hidden else "",
+        "model": model,
         "status": "pending"
     }
     
     # Redirect to streaming page
+    # Get available models from environment variable
+    available_models_str = os.getenv("AVAILABLE_MODELS", "")
+    available_models = [model.strip() for model in available_models_str.split(",") if model.strip()]
+    
+    # Get current model from form, or first available model, or environment variable
+    if model:
+        current_model = model
+    elif available_models:
+        current_model = available_models[0]  # Default to first available model
+    else:
+        current_model = os.getenv("MODEL", "gpt-4o-mini")
+    
     return templates.TemplateResponse("index.jinja", {
         "request": request,
         "repo_url": repo_url,
@@ -147,7 +187,52 @@ async def generate_dockerfile(
         "streaming": True,
         "session_id": session_id,
         "result": None,
-        "error": None
+        "error": None,
+        "available_models": available_models,
+        "current_model": current_model
+    })
+
+
+@app.post("/", response_class=HTMLResponse) 
+async def generate_dockerfile(
+    request: Request, 
+    repo_url: str = Form(...),
+    additional_instructions_hidden: str = Form(""),
+    model: str = Form(None)
+):
+    """Redirect to streaming page for Dockerfile generation."""
+    # Store the repo URL, additional instructions, and model in a session
+    session_id = str(hash(repo_url + str(asyncio.get_event_loop().time())))
+    sessions[session_id] = {
+        "repo_url": repo_url,
+        "additional_instructions": additional_instructions_hidden.strip() if additional_instructions_hidden else "",
+        "model": model,
+        "status": "pending"
+    }
+    
+    # Redirect to streaming page
+    # Get available models from environment variable
+    available_models_str = os.getenv("AVAILABLE_MODELS", "")
+    available_models = [model.strip() for model in available_models_str.split(",") if model.strip()]
+    
+    # Get current model from form, or first available model, or environment variable
+    if model:
+        current_model = model
+    elif available_models:
+        current_model = available_models[0]  # Default to first available model
+    else:
+        current_model = os.getenv("MODEL", "gpt-4o-mini")
+    
+    return templates.TemplateResponse("index.jinja", {
+        "request": request,
+        "repo_url": repo_url,
+        "loading": False,
+        "streaming": True,
+        "session_id": session_id,
+        "result": None,
+        "error": None,
+        "available_models": available_models,
+        "current_model": current_model
     })
 
 
@@ -167,6 +252,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         
         repo_url = sessions[session_id]["repo_url"]
         additional_instructions = sessions[session_id].get("additional_instructions", "")
+        model = sessions[session_id].get("model", None)
         
         # Step 1: Clone repository
         await websocket.send_text(json.dumps({
@@ -204,21 +290,21 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             "content": "🐳 Generating Dockerfile with AI..."
         }))
         
-        container_result = await create_container_tool(
-            gitingest_summary=ingest_result['summary'],
-            gitingest_tree=ingest_result['tree'], 
-            gitingest_content=ingest_result['content'],
-            project_name=clone_result['repo_name'],
-            websocket=websocket,  # Pass WebSocket for streaming
-            additional_instructions=additional_instructions
-        )
+        # Prepare arguments for create_container_tool
+        container_args = {
+            "gitingest_summary": ingest_result['summary'],
+            "gitingest_tree": ingest_result['tree'], 
+            "gitingest_content": ingest_result['content'],
+            "project_name": clone_result['repo_name'],
+            "websocket": websocket,  # Pass WebSocket for streaming
+            "additional_instructions": additional_instructions
+        }
         
-        if not container_result["success"]:
-            await websocket.send_text(json.dumps({
-                "type": "error",
-                "content": f"Failed to generate Dockerfile: {container_result['error']}"
-            }))
-            return
+        # Add model parameter if specified
+        if model:
+            container_args["model"] = model
+        
+        container_result = await create_container_tool(**container_args)
         
         if not container_result["success"]:
             await websocket.send_text(json.dumps({

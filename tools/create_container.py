@@ -12,6 +12,18 @@ from tools.utils import emit_ws_message
 # Load environment variables
 load_dotenv()
 
+import asyncio
+import json
+import os
+import re
+from typing import Dict, Any, Optional
+
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
+
+# Load environment variables
+load_dotenv()
+
 async def create_container_tool(
         gitingest_summary: str,
         gitingest_tree: str,
@@ -19,7 +31,8 @@ async def create_container_tool(
         project_name: Optional[str] = None,
         additional_instructions: Optional[str] = None,
         max_context_chars: int = 50000,  # Limit to stay within context window
-        websocket: Optional[Any] = None  # WebSocket connection for streaming
+        websocket: Optional[Any] = None,  # WebSocket connection for streaming
+        model: Optional[str] = None  # Model to use for generation
 ) -> Dict[str, Any]:
     """
     Generate a Dockerfile using OpenAI API based on gitingest context.
@@ -32,6 +45,7 @@ async def create_container_tool(
         additional_instructions (str, optional): Additional instructions for the Dockerfile generation
         max_context_chars (int): Maximum characters to send in context
         websocket (Any, optional): WebSocket connection for streaming
+        model (str, optional): Model to use for generation
         
     Returns:
         Dict[str, Any]: Dictionary containing the generated Dockerfile and metadata
@@ -41,7 +55,10 @@ async def create_container_tool(
         api_key = os.getenv("OPENAI_API_KEY")
         base_url = os.getenv("BASE_URL")
         inf_api_key = os.getenv("INF_API_KEY")
-        model = os.getenv("MODEL", "gpt-4o-mini")
+        default_model = os.getenv("MODEL", "gpt-4o-mini")
+        
+        # Use provided model or fallback to default
+        model_to_use = model or default_model
 
         if not api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
@@ -118,7 +135,7 @@ Required JSON format:
 
         try:
             response = await client.chat.completions.create(
-                model=model,  # Using GPT-4 for better code generation
+                model=model_to_use,  # Use the selected model for generation
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more consistent output
                 max_tokens=2000,  # Sufficient for Dockerfile generation
@@ -248,7 +265,8 @@ def run_create_container(
         gitingest_content: str,
         project_name: Optional[str] = None,
         additional_instructions: Optional[str] = None,
-        websocket: Optional[Any] = None
+        websocket: Optional[Any] = None,
+        model: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Synchronous wrapper for the create_container tool.
@@ -260,12 +278,14 @@ def run_create_container(
         project_name (str, optional): Name of the project
         additional_instructions (str, optional): Additional instructions for Dockerfile generation
         websocket (Any, optional): WebSocket connection for streaming
+        model (str, optional): Model to use for generation
         
     Returns:
         Dict[str, Any]: Dictionary containing generated Dockerfile and metadata
     """
     return asyncio.run(create_container_tool(
-        gitingest_summary, gitingest_tree, gitingest_content, project_name, additional_instructions, websocket=websocket
+        gitingest_summary, gitingest_tree, gitingest_content, project_name, additional_instructions, 
+        websocket=websocket, model=model
     ))
 
 
@@ -297,6 +317,10 @@ create_container_function = {
                 "additional_instructions": {
                     "type": "string",
                     "description": "Optional additional instructions for customizing the Dockerfile generation"
+                },
+                "model": {
+                    "type": "string",
+                    "description": "Optional model to use for generation"
                 }
             },
             "required": ["gitingest_summary", "gitingest_tree", "gitingest_content"]
