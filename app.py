@@ -35,6 +35,46 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 sessions = {}
 
 
+def parse_available_models():
+    """
+    Parse the AVAILABLE_MODELS environment variable.
+    Format: model_name|stream_support,model_name|stream_support,...
+    Example: gpt-4o-mini|true,gpt-4o|true,o1-mini|false,o1|false
+    """
+    available_models_str = os.getenv("AVAILABLE_MODELS", "")
+    if not available_models_str:
+        return []
+    
+    models = []
+    for model_entry in available_models_str.split(","):
+        model_entry = model_entry.strip()
+        if "|" in model_entry:
+            model_name, stream_support = model_entry.split("|")
+            models.append({
+                "name": model_name.strip(),
+                "stream": stream_support.strip().lower() == "true"
+            })
+        else:
+            # For backward compatibility, if no | is present, assume stream is supported
+            models.append({
+                "name": model_entry,
+                "stream": True
+            })
+    return models
+
+
+def get_model_stream_support(model_name):
+    """
+    Check if a specific model supports streaming based on AVAILABLE_MODELS environment variable.
+    """
+    models = parse_available_models()
+    for model in models:
+        if model["name"] == model_name:
+            return model["stream"]
+    # Default to True if model not found in the list
+    return True
+
+
 @app.get("/favicon.ico")
 async def favicon():
     """Serve the main favicon."""
@@ -63,12 +103,11 @@ async def apple_touch_icon():
 async def home(request: Request):
     """Home page with the input form."""
     # Get available models from environment variable
-    available_models_str = os.getenv("AVAILABLE_MODELS", "")
-    available_models = [model.strip() for model in available_models_str.split(",") if model.strip()]
+    available_models = parse_available_models()
     
     # Get current model - first from available models, or fallback to environment or default
     if available_models:
-        current_model = available_models[0]  # Default to first available model
+        current_model = available_models[0]["name"]  # Default to first available model
     else:
         current_model = os.getenv("MODEL", "gpt-4o-mini")
     
@@ -79,7 +118,7 @@ async def home(request: Request):
         "streaming": False,
         "result": None,
         "error": None,
-        "available_models": available_models,
+        "available_models": [model["name"] for model in available_models],
         "current_model": current_model
     })
 
@@ -101,12 +140,11 @@ async def dynamic_github_route(request: Request, path: str):
     # Check if we have at least 2 segments (username/repo)
     if len(segments) < 2:
         # Get available models from environment variable
-        available_models_str = os.getenv("AVAILABLE_MODELS", "")
-        available_models = [model.strip() for model in available_models_str.split(",") if model.strip()]
+        available_models = parse_available_models()
         
         # Get current model - first from available models, or fallback to environment or default
         if available_models:
-            current_model = available_models[0]  # Default to first available model
+            current_model = available_models[0]["name"]  # Default to first available model
         else:
             current_model = os.getenv("MODEL", "gpt-4o-mini")
         
@@ -118,7 +156,7 @@ async def dynamic_github_route(request: Request, path: str):
             "result": None,
             "error": f"Invalid GitHub URL format. Expected format: gitcontainer.com/username/repository",
             "pre_filled": False,
-            "available_models": available_models,
+            "available_models": [model["name"] for model in available_models],
             "current_model": current_model
         })
     
@@ -127,12 +165,11 @@ async def dynamic_github_route(request: Request, path: str):
     github_url = f"https://github.com/{username}/{repo}"
     
     # Get available models from environment variable
-    available_models_str = os.getenv("AVAILABLE_MODELS", "")
-    available_models = [model.strip() for model in available_models_str.split(",") if model.strip()]
+    available_models = parse_available_models()
     
     # Get current model - first from available models, or fallback to environment or default
     if available_models:
-        current_model = available_models[0]  # Default to first available model
+        current_model = available_models[0]["name"]  # Default to first available model
     else:
         current_model = os.getenv("MODEL", "gpt-4o-mini")
     
@@ -144,7 +181,7 @@ async def dynamic_github_route(request: Request, path: str):
         "result": None,
         "error": None,
         "pre_filled": True,
-        "available_models": available_models,
+        "available_models": [model["name"] for model in available_models],
         "current_model": current_model
     })
 
@@ -169,14 +206,13 @@ async def dynamic_github_route_post(
     
     # Redirect to streaming page
     # Get available models from environment variable
-    available_models_str = os.getenv("AVAILABLE_MODELS", "")
-    available_models = [model.strip() for model in available_models_str.split(",") if model.strip()]
+    available_models = parse_available_models()
     
     # Get current model from form, or first available model, or environment variable
     if model:
         current_model = model
     elif available_models:
-        current_model = available_models[0]  # Default to first available model
+        current_model = available_models[0]["name"]  # Default to first available model
     else:
         current_model = os.getenv("MODEL", "gpt-4o-mini")
     
@@ -188,7 +224,7 @@ async def dynamic_github_route_post(
         "session_id": session_id,
         "result": None,
         "error": None,
-        "available_models": available_models,
+        "available_models": [model["name"] for model in available_models],
         "current_model": current_model
     })
 
@@ -212,14 +248,13 @@ async def generate_dockerfile(
     
     # Redirect to streaming page
     # Get available models from environment variable
-    available_models_str = os.getenv("AVAILABLE_MODELS", "")
-    available_models = [model.strip() for model in available_models_str.split(",") if model.strip()]
+    available_models = parse_available_models()
     
     # Get current model from form, or first available model, or environment variable
     if model:
         current_model = model
     elif available_models:
-        current_model = available_models[0]  # Default to first available model
+        current_model = available_models[0]["name"]  # Default to first available model
     else:
         current_model = os.getenv("MODEL", "gpt-4o-mini")
     
@@ -231,7 +266,7 @@ async def generate_dockerfile(
         "session_id": session_id,
         "result": None,
         "error": None,
-        "available_models": available_models,
+        "available_models": [model["name"] for model in available_models],
         "current_model": current_model
     })
 
@@ -253,6 +288,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         repo_url = sessions[session_id]["repo_url"]
         additional_instructions = sessions[session_id].get("additional_instructions", "")
         model = sessions[session_id].get("model", None)
+        
+        # Determine if the selected model supports streaming
+        stream_support = get_model_stream_support(model) if model else True
         
         # Step 1: Clone repository
         await websocket.send_text(json.dumps({
@@ -297,7 +335,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             "gitingest_content": ingest_result['content'],
             "project_name": clone_result['repo_name'],
             "websocket": websocket,  # Pass WebSocket for streaming
-            "additional_instructions": additional_instructions
+            "additional_instructions": additional_instructions,
+            "stream": stream_support  # Set stream based on model support
         }
         
         # Add model parameter if specified

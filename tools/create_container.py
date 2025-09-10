@@ -12,17 +12,6 @@ from tools.utils import emit_ws_message
 # Load environment variables
 load_dotenv()
 
-import asyncio
-import json
-import os
-import re
-from typing import Dict, Any, Optional
-
-from dotenv import load_dotenv
-from openai import AsyncOpenAI
-
-# Load environment variables
-load_dotenv()
 
 async def create_container_tool(
         gitingest_summary: str,
@@ -32,7 +21,8 @@ async def create_container_tool(
         additional_instructions: Optional[str] = None,
         max_context_chars: int = 50000,  # Limit to stay within context window
         websocket: Optional[Any] = None,  # WebSocket connection for streaming
-        model: Optional[str] = None  # Model to use for generation
+        model: Optional[str] = None,  # Model to use for generation
+        stream: bool = True  # Whether to stream the response
 ) -> Dict[str, Any]:
     """
     Generate a Dockerfile using OpenAI API based on gitingest context.
@@ -46,6 +36,7 @@ async def create_container_tool(
         max_context_chars (int): Maximum characters to send in context
         websocket (Any, optional): WebSocket connection for streaming
         model (str, optional): Model to use for generation
+        stream (bool): Whether to stream the response
         
     Returns:
         Dict[str, Any]: Dictionary containing the generated Dockerfile and metadata
@@ -131,7 +122,7 @@ Required JSON format:
         print(f"Debug - Messages count: {len(messages)}")
         print(f"Debug - Temperature: 0.3")
         print(f"Debug - Max tokens: 2000")
-        print(f"Debug - Stream: True")
+        print(f"Debug - Stream: {stream}")
 
         try:
             response = await client.chat.completions.create(
@@ -139,7 +130,7 @@ Required JSON format:
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more consistent output
                 max_tokens=2000,  # Sufficient for Dockerfile generation
-                stream=True,  # Enable streaming
+                stream=stream,  # Use the stream parameter
                 extra_headers={'apikey': api_key} if api_key else None,
             )
 
@@ -148,27 +139,43 @@ Required JSON format:
             print(f"Debug - API call failed with error: {str(e)}")
             raise e
 
-        # Collect the streaming response and print in real-time
+        # Collect response based on streaming setting
         dockerfile_response = ""
-        if websocket_active:
-            websocket_active = await emit_ws_message(websocket, "stream_start", "Starting generation...")
-        print("📝 Response:")
-        print("-" * 50)
+        if stream:
+            # Handle streaming response
+            if websocket_active:
+                websocket_active = await emit_ws_message(websocket, "stream_start", "Starting generation...")
+            print("📝 Response:")
+            print("-" * 50)
 
-        async for chunk in response:
-            if len(chunk.choices) > 0:
-                if chunk.choices[0].delta.content is not None:
-                    content = chunk.choices[0].delta.content
-                    print(content, end="", flush=True)
-                    dockerfile_response += content
-                    # Only emit chunks if WebSocket is still active
-                    if websocket_active:
-                        websocket_active = await emit_ws_message(websocket, "chunk", content)
+            async for chunk in response:
+                if len(chunk.choices) > 0:
+                    if chunk.choices[0].delta.content is not None:
+                        content = chunk.choices[0].delta.content
+                        print(content, end="", flush=True)
+                        dockerfile_response += content
+                        # Only emit chunks if WebSocket is still active
+                        if websocket_active:
+                            websocket_active = await emit_ws_message(websocket, "chunk", content)
 
-        print("\n" + "-" * 50)
-        print("✅ Generation complete!\n")
-        if websocket_active:
-            await emit_ws_message(websocket, "status", "✅ Generation complete!")
+            print("\n" + "-" * 50)
+            print("✅ Generation complete!\n")
+            if websocket_active:
+                await emit_ws_message(websocket, "status", "✅ Generation complete!")
+        else:
+            # Handle non-streaming response
+            dockerfile_response = response.choices[0].message.content
+            print("📝 Response:")
+            print("-" * 50)
+            print(dockerfile_response)
+            print("-" * 50)
+            print("✅ Generation complete!\n")
+            
+            # Send the entire response at once if WebSocket is active
+            if websocket_active:
+                await emit_ws_message(websocket, "stream_start", "Starting generation...")
+                await emit_ws_message(websocket, "chunk", dockerfile_response)
+                await emit_ws_message(websocket, "status", "✅ Generation complete!")
 
         # Try to parse as JSON, fallback to plain text if needed
         try:
