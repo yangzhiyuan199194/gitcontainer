@@ -55,7 +55,7 @@ async def build_docker_image(
             image_tag = f"{project_name.lower().replace('/', '-')}:{timestamp}"
 
             # Try to build the Docker image with retry mechanism
-            max_retries = 1
+            max_retries = 0
             for attempt in range(max_retries):
                 try:
                     # Add --no-cache option to avoid cache-related issues on retry attempts
