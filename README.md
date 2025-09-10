@@ -30,6 +30,7 @@ https://github.com/username/repo  →  https://gitcontainer.com/username/repo
 - **📄 Docker Compose**: Automatically suggests docker-compose.yml for complex applications
 - **🎨 Modern UI**: Clean, responsive interface with Monaco editor for syntax highlighting
 - **📱 Mobile Friendly**: Works seamlessly on desktop and mobile devices
+- **🧠 Multi-Agent System**: Intelligent system that can reflect on failures and iteratively improve results
 
 ## 🚀 Quick Start
 
@@ -81,6 +82,31 @@ https://github.com/username/repo  →  https://gitcontainer.com/username/repo
    - Environment variables
    - Health checks
 
+## 🧠 Multi-Agent System
+
+Gitcontainer now includes an advanced multi-agent system built with LangGraph that can intelligently handle Docker build failures:
+
+1. **Clone Agent**: Clones the GitHub repository
+2. **Analysis Agent**: Analyzes the repository structure using gitingest
+3. **Dockerfile Generation Agent**: Generates Dockerfile using AI
+4. **Build Agent**: Attempts to build the Docker image
+5. **Reflection Agent**: If the build fails, analyzes the error and suggests improvements
+6. **Improvement Agent**: Generates an improved Dockerfile based on the reflection
+
+This system can automatically iterate and improve the Dockerfile generation process when builds fail, making it more robust and intelligent.
+
+Example usage:
+```python
+from tools.multiagent_system import run_multiagent_workflow
+
+result = await run_multiagent_workflow(
+    repo_url="https://github.com/user/repo",
+    additional_instructions="Use Alpine Linux base image",
+    model="gpt-4o-mini",
+    max_iterations=3
+)
+```
+
 ## 📁 Project Structure
 
 ```
@@ -95,7 +121,9 @@ cyclotruc-gitcontainer/
     ├── __init__.py
     ├── create_container.py  # AI Dockerfile generation
     ├── git_operations.py    # GitHub repository cloning
-    └── gitingest.py        # Repository analysis
+    ├── gitingest.py         # Repository analysis
+    ├── build_docker_image.py # Docker image building
+    └── multiagent_system.py # Multi-agent system with reflection capabilities
 ```
 
 ## 🔧 Configuration
@@ -158,6 +186,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **[gitingest](https://github.com/cyclotruc/gitingest)** for repository analysis capabilities
 - **[FastAPI](https://fastapi.tiangolo.com/)** for the excellent web framework
 - **[Monaco Editor](https://microsoft.github.io/monaco-editor/)** for code syntax highlighting
+- **[LangGraph](https://github.com/langchain-ai/langgraph)** for multi-agent workflow capabilities
 
 ## 🔗 Links
 

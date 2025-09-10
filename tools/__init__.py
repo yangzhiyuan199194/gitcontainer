@@ -8,6 +8,7 @@ from .gitingest import gitingest_tool, gitingest_function
 from .git_operations import clone_repo_tool, git_operations_function
 from .create_container import create_container_tool, create_container_function
 from .build_docker_image import build_docker_image
+from .multiagent_system import run_multiagent_workflow
 
 __all__ = [
     'gitingest_tool',
@@ -16,5 +17,6 @@ __all__ = [
     'git_operations_function',
     'create_container_tool',
     'create_container_function',
-    'build_docker_image'
+    'build_docker_image',
+    'run_multiagent_workflow'
 ]
