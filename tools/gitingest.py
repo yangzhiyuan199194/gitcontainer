@@ -61,16 +61,9 @@ async def gitingest_tool(local_repo_path: str, websocket: Optional[Any] = None) 
         
         if websocket:
             # Check the type of content and handle accordingly
-            file_count = 0
-            if isinstance(content, dict):
-                file_count = len(content.get('files', []))
-            elif isinstance(content, str):
-                # If content is a string, we can't get file count from it
-                file_count = "unknown"
-            
             await websocket.send_text(json.dumps({
                 "type": "chunk",
-                "content": f"📊 Analysis complete. Found {file_count} files.\n"
+                "content": f"📊 Analysis complete. summary: {summary}\n"
             }))
             await websocket.send_text(json.dumps({
                 "type": "chunk",
