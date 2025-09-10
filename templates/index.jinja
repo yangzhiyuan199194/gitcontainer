@@ -133,6 +133,18 @@
             color: #4A90E2;
             font-weight: 500;
         }
+        /* 内容显示区域样式，支持HTML内容 */
+        #content-display {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.875rem; /* 14px */
+            line-height: 1.25rem; /* 20px */
+            white-space: pre-wrap;
+            word-break: break-word;
+            height: 24rem; /* h-96 equivalent */
+            overflow-y: auto;
+            background-color: #000000;
+            color: #00FF00; /* 默认绿色文本 */
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col">
@@ -779,6 +791,26 @@
                         // 将构建日志显示到独立的内容显示区域，不添加步骤前缀
                         showStepContent('content', data.content);
                         break;
+                    case 'phase_start':
+                        // 处理阶段开始消息，根据phase_type应用不同颜色
+                        let startContent = data.content;
+                        if (data.phase_type === 'smart') {
+                            startContent = '<span style="color: #FFFF00; font-weight: bold;">[智能阶段] ' + data.content + '</span>';
+                        } else {
+                            startContent = '<span style="color: #00FFFF; font-weight: bold;">[常规阶段] ' + data.content + '</span>';
+                        }
+                        showStepContent('content', startContent + '\n' + '='.repeat(50) + '\n');
+                        break;
+                    case 'phase_end':
+                        // 处理阶段结束消息，根据phase_type应用不同颜色
+                        let endContent = data.content;
+                        if (data.phase_type === 'smart') {
+                            endContent = '<span style="color: #FFFF00; font-weight: bold;">[智能阶段] ' + data.content + '</span>';
+                        } else {
+                            endContent = '<span style="color: #00FFFF; font-weight: bold;">[常规阶段] ' + data.content + '</span>';
+                        }
+                        showStepContent('content', endContent + '\n' + '='.repeat(50) + '\n');
+                        break;
                     case 'error':
                         // Mark current step as failed
                         if (currentStep) {
@@ -874,7 +906,21 @@
             // 将内容显示到独立的内容显示区域
             const contentDisplay = document.getElementById('content-display');
             if (contentDisplay) {
-                contentDisplay.innerHTML += content;
+                // 检查内容是否包含HTML标签
+                if (content.includes('<') && content.includes('>')) {
+                    // 如果是HTML内容，直接添加
+                    contentDisplay.innerHTML += content;
+                } else {
+                    // 如果是纯文本，进行转义后添加
+                    const escapedContent = content
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;')
+                        .replace(/\n/g, '<br>');
+                    contentDisplay.innerHTML += escapedContent;
+                }
                 // 滚动到底部 - 使用更可靠的方法
                 setTimeout(() => {
                     contentDisplay.scrollTop = contentDisplay.scrollHeight;
@@ -886,7 +932,21 @@
             // This function is kept for backward compatibility
             const contentDisplay = document.getElementById('content-display');
             if (contentDisplay) {
-                contentDisplay.innerHTML += content;
+                // 检查内容是否包含HTML标签
+                if (content.includes('<') && content.includes('>')) {
+                    // 如果是HTML内容，直接添加
+                    contentDisplay.innerHTML += content;
+                } else {
+                    // 如果是纯文本，进行转义后添加
+                    const escapedContent = content
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;')
+                        .replace(/\n/g, '<br>');
+                    contentDisplay.innerHTML += escapedContent;
+                }
                 // 滚动到底部 - 使用更可靠的方法
                 setTimeout(() => {
                     contentDisplay.scrollTop = contentDisplay.scrollHeight;
@@ -898,7 +958,21 @@
             // This function is kept for backward compatibility
             const contentDisplay = document.getElementById('content-display');
             if (contentDisplay) {
-                contentDisplay.innerHTML += content;
+                // 检查内容是否包含HTML标签
+                if (content.includes('<') && content.includes('>')) {
+                    // 如果是HTML内容，直接添加
+                    contentDisplay.innerHTML += content;
+                } else {
+                    // 如果是纯文本，进行转义后添加
+                    const escapedContent = content
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;')
+                        .replace(/\n/g, '<br>');
+                    contentDisplay.innerHTML += escapedContent;
+                }
                 // 滚动到底部 - 使用更可靠的方法
                 setTimeout(() => {
                     contentDisplay.scrollTop = contentDisplay.scrollHeight;
@@ -909,7 +983,8 @@
         function showError(error) {
             const contentDisplay = document.getElementById('content-display');
             if (contentDisplay) {
-                contentDisplay.innerHTML += '\n错误: ' + error + '\n';
+                const errorContent = '<span style="color: #FF0000;">错误: ' + error + '</span>';
+                contentDisplay.innerHTML += errorContent + '<br>';
                 // 滚动到底部 - 使用更可靠的方法
                 setTimeout(() => {
                     contentDisplay.scrollTop = contentDisplay.scrollHeight;

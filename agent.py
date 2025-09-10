@@ -110,8 +110,9 @@ async def clone_repository(state: WorkflowState) -> WorkflowState:
             "content": "🔄 Cloning repository..."
         }))
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[常规阶段] [克隆阶段开始]\n" + "="*50 + "\n"
+            "type": "phase_start",
+            "content": "[克隆阶段开始]",
+            "phase_type": "normal"
         }))
     
     logger.info("克隆Agent开始工作")
@@ -123,8 +124,9 @@ async def clone_repository(state: WorkflowState) -> WorkflowState:
     
     if websocket:
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[常规阶段] [克隆阶段结束]\n" + "="*50 + "\n"
+            "type": "phase_end",
+            "content": "[克隆阶段结束]",
+            "phase_type": "normal"
         }))
     
     state["clone_result"] = clone_result
@@ -140,8 +142,9 @@ async def analyze_repository(state: WorkflowState) -> WorkflowState:
             "content": "📊 Analyzing repository structure..."
         }))
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[常规阶段] [分析阶段开始]\n" + "="*50 + "\n"
+            "type": "phase_start",
+            "content": "[分析阶段开始]",
+            "phase_type": "normal"
         }))
     
     logger.info("分析Agent开始工作")
@@ -153,8 +156,9 @@ async def analyze_repository(state: WorkflowState) -> WorkflowState:
         }
         if websocket:
             await websocket.send_text(json.dumps({
-                "type": "build_log",
-                "content": "[常规阶段] [分析阶段结束]\n" + "="*50 + "\n"
+                "type": "phase_end",
+                "content": "[分析阶段结束]",
+                "phase_type": "normal"
             }))
         return state
     
@@ -165,8 +169,9 @@ async def analyze_repository(state: WorkflowState) -> WorkflowState:
     
     if websocket:
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[常规阶段] [分析阶段结束]\n" + "="*50 + "\n"
+            "type": "phase_end",
+            "content": "[分析阶段结束]",
+            "phase_type": "normal"
         }))
     
     state["analysis_result"] = analysis_result
@@ -182,8 +187,9 @@ async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
             "content": "🐳 Generating Dockerfile with AI..."
         }))
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[常规阶段] [生成阶段开始]\n" + "="*50 + "\n"
+            "type": "phase_start",
+            "content": "[生成阶段开始]",
+            "phase_type": "normal"
         }))
     
     logger.info("Dockerfile生成Agent开始工作")
@@ -195,8 +201,9 @@ async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
         }
         if websocket:
             await websocket.send_text(json.dumps({
-                "type": "build_log",
-                "content": "[常规阶段] [生成阶段结束]\n" + "="*50 + "\n"
+                "type": "phase_end",
+                "content": "[生成阶段结束]",
+                "phase_type": "normal"
             }))
         return state
     
@@ -216,8 +223,9 @@ async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
     
     if websocket:
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[常规阶段] [生成阶段结束]\n" + "="*50 + "\n"
+            "type": "phase_end",
+            "content": "[生成阶段结束]",
+            "phase_type": "normal"
         }))
     
     state["dockerfile_result"] = dockerfile_result
@@ -233,8 +241,9 @@ async def build_image(state: WorkflowState) -> WorkflowState:
             "content": "🔨 Building Docker image..."
         }))
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[常规阶段] [构建阶段开始]\n" + "="*50 + "\n"
+            "type": "phase_start",
+            "content": "[构建阶段开始]",
+            "phase_type": "normal"
         }))
         await websocket.send_text(json.dumps({
             "type": "build_log",
@@ -254,8 +263,9 @@ async def build_image(state: WorkflowState) -> WorkflowState:
                 "content": "❌ Dockerfile生成失败，无法构建镜像\n"
             }))
             await websocket.send_text(json.dumps({
-                "type": "build_log",
-                "content": "[常规阶段] [构建阶段结束]\n" + "="*50 + "\n"
+                "type": "phase_end",
+                "content": "[构建阶段结束]",
+                "phase_type": "normal"
             }))
         return state
     
@@ -294,8 +304,9 @@ async def build_image(state: WorkflowState) -> WorkflowState:
                 "content": f"Docker 镜像构建失败: {build_result.get('error', 'Unknown error')}"
             }))
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[常规阶段] [构建阶段结束]\n" + "="*50 + "\n"
+            "type": "phase_end",
+            "content": "[构建阶段结束]",
+            "phase_type": "normal"
         }))
     
     state["build_result"] = build_result
@@ -311,8 +322,9 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
             "content": "🤔 Reflecting on build failure..."
         }))
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[智能阶段] [反思阶段开始]\n" + "="*50 + "\n"
+            "type": "phase_start",
+            "content": "[反思阶段开始]",
+            "phase_type": "smart"
         }))
         await websocket.send_text(json.dumps({
             "type": "build_log",
@@ -333,8 +345,9 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
                 "content": "✅ 构建成功，无需反思\n"
             }))
             await websocket.send_text(json.dumps({
-                "type": "build_log",
-                "content": "[智能阶段] [反思阶段结束]\n" + "="*50 + "\n"
+                "type": "phase_end",
+                "content": "[反思阶段结束]",
+                "phase_type": "smart"
             }))
         return state
     
@@ -374,8 +387,9 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
             "content": f"🤔 反思构建失败原因: {error_message}\n"
         }))
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[智能阶段] [反思阶段结束]\n" + "="*50 + "\n"
+            "type": "phase_end",
+            "content": "[反思阶段结束]",
+            "phase_type": "smart"
         }))
     
     return state
@@ -390,8 +404,9 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
             "content": "🔄 Improving Dockerfile based on reflection..."
         }))
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[智能阶段] [改进阶段开始]\n" + "="*50 + "\n"
+            "type": "phase_start",
+            "content": "[改进阶段开始]",
+            "phase_type": "smart"
         }))
         await websocket.send_text(json.dumps({
             "type": "build_log",
@@ -407,8 +422,9 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
                 "content": "✅ 无需改进\n"
             }))
             await websocket.send_text(json.dumps({
-                "type": "build_log",
-                "content": "[智能阶段] [改进阶段结束]\n" + "="*50 + "\n"
+                "type": "phase_end",
+                "content": "[改进阶段结束]",
+                "phase_type": "smart"
             }))
         return state
     
@@ -455,8 +471,9 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
                 "content": f"❌ Dockerfile改进失败: {dockerfile_result.get('error', 'Unknown error')}\n"
             }))
         await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "[智能阶段] [改进阶段结束]\n" + "="*50 + "\n"
+            "type": "phase_end",
+            "content": "[改进阶段结束]",
+            "phase_type": "smart"
         }))
         await websocket.send_text(json.dumps({
             "type": "build_log",
@@ -869,5 +886,5 @@ if __name__ == "__main__":
     import uvicorn
     # Load environment variables
     load_dotenv()
-    PORT = int(os.getenv("PORT", 8001))  # Different port from main app
+    PORT = int(os.getenv("PORT", 8000))  # Different port from main app
     uvicorn.run(app, host="0.0.0.0", port=PORT)
