@@ -470,6 +470,11 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
                 "type": "build_log",
                 "content": f"❌ Dockerfile改进失败: {dockerfile_result.get('error', 'Unknown error')}\n"
             }))
+            # 添加明确的错误消息类型，确保前端能正确处理
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "content": f"Dockerfile改进失败: {dockerfile_result.get('error', 'Unknown error')}"
+            }))
         await websocket.send_text(json.dumps({
             "type": "phase_end",
             "content": "[改进阶段结束]",
@@ -491,12 +496,13 @@ def should_continue(state: WorkflowState) -> str:
     if state["build_result"].get("success"):
         if websocket:
             try:
-                asyncio.create_task(websocket.send_text(json.dumps({
+                # 使用 ensure_future 替代 create_task 来避免 RuntimeWarning
+                asyncio.ensure_future(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "✅ 构建成功，工作流结束"
                 })))
             except RuntimeError:
-                # 如果没有运行的事件循环，直接发送消息
+                # 如果没有运行的事件循环，跳过消息发送
                 pass
         return "success"
     
@@ -504,11 +510,11 @@ def should_continue(state: WorkflowState) -> str:
     if state["iteration"] >= state["max_iterations"]:
         if websocket:
             try:
-                asyncio.create_task(websocket.send_text(json.dumps({
+                asyncio.ensure_future(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束"
                 })))
-                asyncio.create_task(websocket.send_text(json.dumps({
+                asyncio.ensure_future(websocket.send_text(json.dumps({
                     "type": "build_log",
                     "content": f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束\n"
                 })))
@@ -521,7 +527,7 @@ def should_continue(state: WorkflowState) -> str:
     if not state["build_result"].get("success"):
         if websocket:
             try:
-                asyncio.create_task(websocket.send_text(json.dumps({
+                asyncio.ensure_future(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "🔄 构建失败，进入反思阶段"
                 })))
@@ -532,7 +538,7 @@ def should_continue(state: WorkflowState) -> str:
     
     if websocket:
         try:
-            asyncio.create_task(websocket.send_text(json.dumps({
+            asyncio.ensure_future(websocket.send_text(json.dumps({
                 "type": "status",
                 "content": "🔚 工作流结束"
             })))
@@ -550,11 +556,11 @@ def should_retry(state: WorkflowState) -> str:
     if state["dockerfile_result"]["success"] and state["iteration"] < state["max_iterations"]:
         if websocket:
             try:
-                asyncio.create_task(websocket.send_text(json.dumps({
+                asyncio.ensure_future(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "🔄 Dockerfile已改进，重新尝试构建"
                 })))
-                asyncio.create_task(websocket.send_text(json.dumps({
+                asyncio.ensure_future(websocket.send_text(json.dumps({
                     "type": "build_log",
                     "content": f"🔄 Dockerfile已改进，重新尝试构建 (第 {state['iteration'] + 1} 次尝试)\n"
                 })))
@@ -567,33 +573,43 @@ def should_retry(state: WorkflowState) -> str:
     if websocket:
         if not state["dockerfile_result"]["success"]:
             try:
-                asyncio.create_task(websocket.send_text(json.dumps({
+                asyncio.ensure_future(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "❌ Dockerfile改进失败，工作流结束"
                 })))
-                asyncio.create_task(websocket.send_text(json.dumps({
+                asyncio.ensure_future(websocket.send_text(json.dumps({
                     "type": "build_log",
                     "content": "❌ Dockerfile改进失败，工作流结束\n"
+                })))
+                # 添加明确的错误消息类型，确保前端能正确处理
+                asyncio.ensure_future(websocket.send_text(json.dumps({
+                    "type": "error",
+                    "content": "Dockerfile改进失败，已达到最大迭代次数或改进过程出错"
                 })))
             except RuntimeError:
                 # 如果没有运行的事件循环，跳过消息发送
                 pass
         elif state["iteration"] >= state["max_iterations"]:
             try:
-                asyncio.create_task(websocket.send_text(json.dumps({
+                asyncio.ensure_future(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "⏹️ 已达到最大迭代次数，工作流结束"
                 })))
-                asyncio.create_task(websocket.send_text(json.dumps({
+                asyncio.ensure_future(websocket.send_text(json.dumps({
                     "type": "build_log",
                     "content": "⏹️ 已达到最大迭代次数，工作流结束\n"
+                })))
+                # 添加明确的错误消息类型，确保前端能正确处理
+                asyncio.ensure_future(websocket.send_text(json.dumps({
+                    "type": "error",
+                    "content": "已达到最大迭代次数，Docker镜像构建失败"
                 })))
             except RuntimeError:
                 # 如果没有运行的事件循环，跳过消息发送
                 pass
         else:
             try:
-                asyncio.create_task(websocket.send_text(json.dumps({
+                asyncio.ensure_future(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "🔚 工作流结束"
                 })))
@@ -811,7 +827,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             build_result={},
             reflection_result={},
             iteration=0,
-            max_iterations=3,
+            max_iterations=1,
             final_result={},
             websocket=websocket,
             messages=[]

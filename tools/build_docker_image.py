@@ -55,7 +55,7 @@ async def build_docker_image(
             image_tag = f"{project_name.lower().replace('/', '-')}:{timestamp}"
 
             # Build the Docker image
-            build_args = ["docker", "build", "-t", image_tag, "."]
+            build_args = ["docker", "build","--no-cache", "-t", image_tag, "."]
 
             # Send status message about the build
             if websocket:

@@ -140,10 +140,40 @@
             line-height: 1.25rem; /* 20px */
             white-space: pre-wrap;
             word-break: break-word;
-            height: 24rem; /* h-96 equivalent */
+            height: 32rem; /* 增大高度到 h-[512px] (32rem) */
+            min-height: 24rem; /* 最小高度保持 h-96 */
+            max-height: 75vh; /* 最大高度不超过视口的75% */
             overflow-y: auto;
             background-color: #000000;
             color: #00FF00; /* 默认绿色文本 */
+            resize: vertical; /* 允许垂直调整大小 */
+        }
+        
+        /* 可调整大小的容器 */
+        .resizable-container {
+            resize: vertical;
+            overflow: hidden;
+            min-height: 24rem;
+            max-height: 75vh;
+            position: relative;
+        }
+        
+        /* 调整大小的手柄 */
+        .resize-handle {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 10px;
+            background: linear-gradient(to bottom, #E5E7EB 0%, #E5E7EB 20%, transparent 20%);
+            cursor: ns-resize;
+            border-bottom: 1px solid #E5E7EB;
+        }
+        
+        /* 内容显示区域在可调整容器中 */
+        #content-display {
+            height: calc(100% - 10px); /* 减去手柄的高度 */
+            overflow-y: auto;
         }
     </style>
 </head>
@@ -351,8 +381,9 @@
                 
                 <!-- Content Display Area -->
                 <div id="content-display-area" class="mt-6">
-                    <div class="border border-gray-200 rounded-lg p-4 bg-black">
-                        <div id="content-display" class="font-mono text-green-400 text-sm whitespace-pre-wrap break-words h-96 overflow-y-auto"></div>
+                    <div class="border border-gray-200 rounded-lg p-4 bg-black resizable-container">
+                        <div id="content-display" class="font-mono text-green-400 text-sm whitespace-pre-wrap break-words"></div>
+                        <div class="resize-handle"></div>
                     </div>
                 </div>
 
@@ -812,10 +843,16 @@
                         showStepContent('content', endContent + '\n' + '='.repeat(50) + '\n');
                         break;
                     case 'error':
-                        // Mark current step as failed
+                        // Mark current step as failed and show detailed error
                         if (currentStep) {
                             updateStepStatus(currentStep, 'failed');
                         }
+                        
+                        // Show error in content display area with HTML formatting
+                        const errorContent = `<span style="color: #FF0000; font-weight: bold;">错误: ${data.content}</span>`;
+                        showStepContent('content', errorContent);
+                        
+                        // Also show error in status message
                         showError(data.content);
                         break;
                     case 'complete':
@@ -983,8 +1020,8 @@
         function showError(error) {
             const contentDisplay = document.getElementById('content-display');
             if (contentDisplay) {
-                const errorContent = '<span style="color: #FF0000;">错误: ' + error + '</span>';
-                contentDisplay.innerHTML += errorContent + '<br>';
+                const errorContent = '<span style="color: #FF0000; font-weight: bold;">❌ 错误: ' + error + '</span>';
+                contentDisplay.innerHTML += '\n' + '='.repeat(50) + '\n' + errorContent + '\n' + '='.repeat(50) + '\n<br>';
                 // 滚动到底部 - 使用更可靠的方法
                 setTimeout(() => {
                     contentDisplay.scrollTop = contentDisplay.scrollHeight;
@@ -992,229 +1029,43 @@
             }
         }
         
-        function generateResultsHTML(result) {
-            let html = '<div class="space-y-6">';
+        // 实现手动调整大小功能
+        function makeResizable() {
+            const resizableContainer = document.querySelector('.resizable-container');
+            const resizeHandle = document.querySelector('.resize-handle');
             
-            // Project Info
-            html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-4">';
-            html += '<div class="border border-gray-200 rounded p-4">';
-            html += '<h3 class="font-medium text-gray-900 mb-1">项目</h3>';
-            html += '<p class="text-sm text-gray-600">' + (result.project_name || '未知项目') + '</p>';
-            html += '</div>';
-            html += '<div class="border border-gray-200 rounded p-4">';
-            html += '<h3 class="font-medium text-gray-900 mb-1">技术栈</h3>';
-            html += '<p class="text-sm text-gray-600">' + (result.technology_stack || '未检测到') + '</p>';
-            html += '</div>';
-            if (result.repo_info) {
-                html += '<div class="border border-gray-200 rounded p-4">';
-                html += '<h3 class="font-medium text-gray-900 mb-1">仓库大小</h3>';
-                html += '<p class="text-sm text-gray-600">' + (result.repo_info.file_count || 0) + ' 个文件 (' + (result.repo_info.size_mb || 0) + ' MB)</p>';
-                html += '</div>';
-            }
-            html += '</div>';
-
-            // Dockerfile
-            html += '<div>';
-            html += '<div class="flex justify-between items-center mb-3">';
-            html += '<h3 class="text-lg font-medium text-gray-900">生成的 Dockerfile</h3>';
-            html += '<button onclick="copyDockerfile()" class="btn-primary px-4 py-2 flex items-center gap-2 text-sm">';
-            html += '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>';
-            html += '复制 Dockerfile';
-            html += '</button>';
-            html += '</div>';
-            html += '<div class="border border-gray-200 rounded">';
-            html += '<div class="monaco-container">';
-            html += '<div id="dockerfile-editor-stream"></div>';
-            html += '</div>';
-            html += '</div>';
-            html += '</div>';
-
-            // Docker Compose (if available)
-            if (result.docker_compose) {
-                html += '<div>';
-                html += '<div class="flex justify-between items-center mb-3">';
-                html += '<h3 class="text-lg font-medium text-gray-900">建议的 docker-compose.yml</h3>';
-                html += '<button onclick="copyCompose()" class="btn-primary px-4 py-2 flex items-center gap-2 text-sm">';
-                html += '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>';
-                html += '复制 Compose';
-                html += '</button>';
-                html += '</div>';
-                html += '<div class="border border-gray-200 rounded">';
-                html += '<div class="monaco-container-compose">';
-                html += '<div id="compose-editor-stream"></div>';
-                html += '</div>';
-                html += '</div>';
-                html += '</div>';
-            }
-
-            // Reasoning & Notes
-            if (result.reasoning || result.additional_notes) {
-                html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">';
-                
-                if (result.reasoning) {
-                    html += '<div>';
-                    html += '<h3 class="text-lg font-medium text-gray-900 mb-3">基础镜像选择理由</h3>';
-                    html += '<div class="border border-gray-200 rounded p-4">';
-                    html += '<p class="text-sm text-gray-600">' + result.reasoning + '</p>';
-                    html += '</div>';
-                    html += '</div>';
-                }
-                
-                if (result.additional_notes) {
-                    html += '<div>';
-                    html += '<h3 class="text-lg font-medium text-gray-900 mb-3">附加说明</h3>';
-                    html += '<div class="border border-gray-200 rounded p-4">';
-                    html += '<p class="text-sm text-gray-600 whitespace-pre-wrap">' + result.additional_notes + '</p>';
-                    html += '</div>';
-                    html += '</div>';
-                }
-                
-                html += '</div>';
-            }
+            if (!resizableContainer || !resizeHandle) return;
             
-            // Docker Image Build Info
-            if (result.image_build) {
-                html += '<div>';
-                html += '<h3 class="text-lg font-medium text-gray-900 mb-3">Docker 镜像构建</h3>';
-                html += '<div class="border border-gray-200 rounded p-4">';
+            let isResizing = false;
+            
+            resizeHandle.addEventListener('mousedown', function(e) {
+                isResizing = true;
+                document.body.style.cursor = 'ns-resize';
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isResizing) return;
                 
-                if (result.image_build.success) {
-                    html += '<div class="bg-green-50 border border-green-200 rounded p-3 mb-3">';
-                    html += '<p class="text-green-700 font-medium">' + result.image_build.message + '</p>';
-                    html += '</div>';
-                    html += '<div class="mt-3">';
-                    html += '<h4 class="font-medium text-gray-700 mb-2">镜像标签:</h4>';
-                    html += '<div class="bg-gray-50 p-3 rounded font-mono text-sm break-words">';
-                    html += result.image_build.image_tag;
-                    html += '</div>';
-                    html += '<p class="mt-2 text-sm text-gray-600">您可以使用以下命令运行此镜像:</p>';
-                    html += '<div class="mt-1 bg-gray-800 text-green-400 p-3 rounded font-mono text-sm">';
-                    html += 'docker run -p 8000:8000 ' + result.image_build.image_tag;
-                    html += '</div>';
-                    html += '</div>';
-                } else {
-                    html += '<div class="bg-red-50 border border-red-200 rounded p-3">';
-                    html += '<p class="text-red-700 font-medium">构建失败: ' + (result.image_build.error || '未知错误') + '</p>';
-                    html += '</div>';
-                    
-                    if (result.image_build.build_log) {
-                        html += '<div class="mt-3">';
-                        html += '<h4 class="font-medium text-gray-700 mb-2">构建日志:</h4>';
-                        html += '<div class="bg-gray-800 text-red-400 p-3 rounded font-mono text-xs overflow-auto max-h-40">';
-                        html += result.image_build.build_log;
-                        html += '</div>';
-                    }
-                    
-                    html += '<div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">';
-                    html += '<p class="text-blue-700 text-sm">';
-                    html += '<strong>提示:</strong> 构建失败可能是由于网络问题或Docker Hub镜像拉取问题导致的。';
-                    html += '您可以手动复制Dockerfile内容并使用以下命令构建:';
-                    html += '</p>';
-                    html += '<div class="mt-2 bg-gray-800 text-yellow-400 p-2 rounded font-mono text-xs">';
-                    html += 'docker build --no-cache -t your-image-name .';
-                    html += '</div>';
-                    html += '</div>';
+                const containerRect = resizableContainer.getBoundingClientRect();
+                const newHeight = e.clientY - containerRect.top;
+                
+                // 确保最小高度和最大高度限制
+                if (newHeight >= 200 && newHeight <= window.innerHeight * 0.75) {
+                    resizableContainer.style.height = newHeight + 'px';
                 }
-                
-                html += '</div>';
-                html += '</div>';
-            }
-
-            html += '</div>';
-            return html;
+            });
+            
+            document.addEventListener('mouseup', function() {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+            });
         }
         
-        function showComplete(result) {
-            // 不再隐藏 streaming container，保持状态框可见
-            
-            // 隐藏正在自动化构建的转圈图标和相关文本
-            const streamingContainer = document.getElementById('streaming-container');
-            if (streamingContainer) {
-                const loader = streamingContainer.querySelector('.loader');
-                const heading = streamingContainer.querySelector('h2');
-                if (loader) loader.style.display = 'none';
-                if (heading) heading.style.display = 'none';
-            }
-            
-            // 在内容显示区域下方显示结果
-            const contentDisplayArea = document.getElementById('content-display-area');
-            if (contentDisplayArea) {
-                const resultContainer = document.createElement('div');
-                resultContainer.className = 'mt-8';
-                resultContainer.innerHTML = generateResultsHTML(result);
-                contentDisplayArea.parentNode.insertBefore(resultContainer, contentDisplayArea.nextSibling);
-                
-                // 初始化 Monaco 编辑器
-                setTimeout(() => {
-                    require(['vs/editor/editor.main'], function() {
-                        const dockerfileEditorElement = resultContainer.querySelector('#dockerfile-editor-stream');
-                        if (dockerfileEditorElement) {
-                            dockerfileEditor = monaco.editor.create(dockerfileEditorElement, {
-                                value: result.dockerfile || '# 无 Dockerfile 内容',
-                                language: 'dockerfile',
-                                theme: 'vs',
-                                readOnly: true,
-                                minimap: { enabled: false },
-                                fontSize: 14,
-                                lineNumbers: 'on',
-                                wordWrap: 'on',
-                                folding: true,
-                                automaticLayout: true,
-                                scrollBeyondLastLine: false,
-                                renderLineHighlight: 'none',
-                                selectionHighlight: false,
-                                occurrencesHighlight: false
-                            });
-                        }
-                        
-                        const composeEditorElement = resultContainer.querySelector('#compose-editor-stream');
-                        if (composeEditorElement) {
-                            composeEditor = monaco.editor.create(composeEditorElement, {
-                                value: result.docker_compose || '# 无 docker-compose 内容',
-                                language: 'yaml',
-                                theme: 'vs',
-                                readOnly: true,
-                                minimap: { enabled: false },
-                                fontSize: 14,
-                                lineNumbers: 'on',
-                                wordWrap: 'on',
-                                folding: true,
-                                automaticLayout: true,
-                                scrollBeyondLastLine: false,
-                                renderLineHighlight: 'none',
-                                selectionHighlight: false,
-                                occurrencesHighlight: false
-                            });
-                        }
-                    });
-                }, 100);
-            }
-            
-            // 更新状态消息，表示任务已完成
-            showStatus('任务已完成');
-        }
-        
-        {% endif %}  /* 这是结束 streaming 块的 endif */
-        
-        // Copy to clipboard functionality
-        async function copyToClipboard(text, successMessage, targetButton) {
-            try {
-                await navigator.clipboard.writeText(text);
-                // Show success feedback only on the specific button
-                if (targetButton) {
-                    const originalText = targetButton.innerHTML;
-                    targetButton.innerHTML = '✓ ' + (successMessage || '已复制!');
-                    setTimeout(() => {
-                        targetButton.innerHTML = originalText;
-                    }, 2000);
-                }
-            } catch (err) {
-                console.error('复制失败: ', err);
-            }
-        }
-
-        // Initialize editors when page loads
+        // 在页面加载完成后初始化调整大小功能
         document.addEventListener('DOMContentLoaded', function() {
+            makeResizable();
+            
             console.log('DOM 加载完成，检查 Monaco 容器...');
             
             // Check if containers exist and have proper dimensions
@@ -1245,6 +1096,8 @@
             if (dockerfileEditor) dockerfileEditor.layout();
             if (composeEditor) composeEditor.layout();
         });
+        
+        {% endif %}
     </script>
 </body>
 </html>
