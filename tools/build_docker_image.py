@@ -54,133 +54,105 @@ async def build_docker_image(
             timestamp = int(time.time())
             image_tag = f"{project_name.lower().replace('/', '-')}:{timestamp}"
 
-            # Try to build the Docker image with retry mechanism
-            max_retries = 1
-            for attempt in range(max_retries):
-                try:
-                    # Add --no-cache option to avoid cache-related issues on retry attempts
-                    build_args = ["docker", "build", "-t", image_tag, "."]
-                    if attempt > 0:
-                        build_args.insert(2, "--no-cache")
+            # Build the Docker image
+            build_args = ["docker", "build", "-t", image_tag, "."]
 
-                    # Send status message about the build attempt
-                    if websocket:
-                        await emit_ws_message(websocket, "status",
-                                               f"🔨 正在构建 Docker 镜像 (尝试 {attempt + 1}/{max_retries})...")
-                        await emit_ws_message(websocket, "build_log", f"🚀 开始构建 Docker 镜像: {image_tag}\n")
-                        await emit_ws_message(websocket, "build_log", f"📂 构建目录: {temp_dir}\n")
-                        await emit_ws_message(websocket, "build_log", f"🏗️ 构建命令: {' '.join(build_args)}\n")
-                        await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
+            # Send status message about the build
+            if websocket:
+                await emit_ws_message(websocket, "status",
+                                       f"🔨 正在构建 Docker 镜像...")
+                await emit_ws_message(websocket, "build_log", f"🚀 开始构建 Docker 镜像: {image_tag}\n")
+                await emit_ws_message(websocket, "build_log", f"📂 构建目录: {temp_dir}\n")
+                await emit_ws_message(websocket, "build_log", f"🏗️ 构建命令: {' '.join(build_args)}\n")
+                await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
 
-                    build_process = await asyncio.create_subprocess_exec(
-                        *build_args,
-                        cwd=temp_dir,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.STDOUT  # Combine stderr with stdout
-                    )
+            build_process = await asyncio.create_subprocess_exec(
+                *build_args,
+                cwd=temp_dir,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT  # Combine stderr with stdout
+            )
 
-                    print(f"Debug - Docker build process started with PID: {build_process.pid}")
+            print(f"Debug - Docker build process started with PID: {build_process.pid}")
 
-                    # Stream the build output in real-time with limit
-                    build_log = ""
-                    line_count = 0
-                    max_lines = 10000  # Increase limit to 10000 lines
-                    error_lines = []  # Store error-related lines
-                    collecting_error_context = 0  # Number of lines to collect after an error line
+            # Stream the build output in real-time with limit
+            build_log = ""
+            line_count = 0
+            max_lines = 10000  # Increase limit to 10000 lines
+            error_lines = []  # Store error-related lines
+            collecting_error_context = 0  # Number of lines to collect after an error line
 
-                    while True:
-                        line = await build_process.stdout.readline()
-                        if not line:
-                            break
-                        decoded_line = line.decode('utf-8')
-                        build_log += decoded_line
-                        line_count += 1
+            while True:
+                line = await build_process.stdout.readline()
+                if not line:
+                    break
+                decoded_line = line.decode('utf-8')
+                build_log += decoded_line
+                line_count += 1
 
-                        # Check if this line contains error indicators
-                        if any(keyword in decoded_line.lower() for keyword in
-                               ['error', 'failed', 'exception', 'invalid', 'cannot', 'could not']):
-                            error_lines.append(decoded_line)
-                            collecting_error_context = 20  # Collect 20 more lines after error
-                        elif collecting_error_context > 0:
-                            error_lines.append(decoded_line)
-                            collecting_error_context -= 1
+                # Check if this line contains error indicators
+                if any(keyword in decoded_line.lower() for keyword in
+                       ['error', 'failed', 'exception', 'invalid', 'cannot', 'could not']):
+                    error_lines.append(decoded_line)
+                    collecting_error_context = 20  # Collect 20 more lines after error
+                elif collecting_error_context > 0:
+                    error_lines.append(decoded_line)
+                    collecting_error_context -= 1
 
-                        # Limit the lines we collect to prevent memory issues
-                        if line_count > max_lines:
-                            if line_count == max_lines + 1:  # Only send this message once
-                                if websocket:
-                                    await emit_ws_message(websocket, "build_log",
-                                                           f"\n... [Output truncated to {max_lines} lines] ...\n")
-
-                                    # Send important error lines if we have any
-                                    if error_lines:
-                                        await emit_ws_message(websocket, "build_log", f"\n[关键错误信息摘要]:\n")
-                                        for error_line in error_lines[-50:]:  # Send last 50 error lines
-                                            await emit_ws_message(websocket, "build_log", error_line)
-                            continue
-
-                        # Send each line to the WebSocket if available
+                # Limit the lines we collect to prevent memory issues
+                if line_count > max_lines:
+                    if line_count == max_lines + 1:  # Only send this message once
                         if websocket:
-                            # Check if WebSocket is still active before sending
-                            if not await emit_ws_message(websocket, "build_log", decoded_line):
-                                print("WebSocket closed, stopping log streaming")
-                                break
+                            await emit_ws_message(websocket, "build_log",
+                                                   f"\n... [Output truncated to {max_lines} lines] ...\n")
 
-                    print(f"Debug - Docker build process finished. Read {line_count} lines of output")
+                            # Send important error lines if we have any
+                            if error_lines:
+                                await emit_ws_message(websocket, "build_log", f"\n[关键错误信息摘要]:\n")
+                                for error_line in error_lines[-50:]:  # Send last 50 error lines
+                                    await emit_ws_message(websocket, "build_log", error_line)
+                    continue
 
-                    await build_process.wait()
-                    print(f"Debug - Docker build process return code: {build_process.returncode}")
+                # Send each line to the WebSocket if available
+                if websocket:
+                    # Check if WebSocket is still active before sending
+                    if not await emit_ws_message(websocket, "build_log", decoded_line):
+                        print("WebSocket closed, stopping log streaming")
+                        break
 
-                    if build_process.returncode == 0:
-                        if websocket:
-                            await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
-                            await emit_ws_message(websocket, "build_log", f"✅ 镜像构建成功: {image_tag}\n")
-                        return {
-                            "success": True,
-                            "image_tag": image_tag,
-                            "message": f"Successfully built Docker image: {image_tag}",
-                            "build_log": build_log
-                        }
-                    else:
-                        error_output = build_log if build_log else "Docker build failed"
-                        # Include error lines if we have them
-                        if error_lines:
-                            error_output = "[关键错误信息]:\n" + "".join(
-                                error_lines[-100:]) + "\n\n[完整日志摘要(最后100行)]:\n" + "\n".join(
-                                build_log.split('\n')[-100:]) if build_log else error_output
+            print(f"Debug - Docker build process finished. Read {line_count} lines of output")
 
-                        # If this is the last attempt, return the error
-                        if attempt == max_retries - 1:
-                            if websocket:
-                                await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
-                                await emit_ws_message(websocket, "build_log",
-                                                       f"❌ 镜像构建失败 (已重试 {max_retries} 次)\n")
-                            return {
-                                "success": False,
-                                "error": error_output,
-                                "image_tag": image_tag,
-                                "build_log": error_output
-                            }
-                        else:
-                            if websocket:
-                                await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
-                                await emit_ws_message(websocket, "build_log",
-                                                       f"⚠️ 构建失败，正在重试... (尝试 {attempt + 1}/{max_retries})\n")
-                        # Otherwise, continue to retry
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        return {
-                            "success": False,
-                            "error": f"Failed to execute docker build command: {str(e)}",
-                            "image_tag": image_tag
-                        }
+            await build_process.wait()
+            print(f"Debug - Docker build process return code: {build_process.returncode}")
 
-            # This should not be reached, but just in case
-            return {
-                "success": False,
-                "error": "Maximum retry attempts reached",
-                "image_tag": image_tag
-            }
+            if build_process.returncode == 0:
+                if websocket:
+                    await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
+                    await emit_ws_message(websocket, "build_log", f"✅ 镜像构建成功: {image_tag}\n")
+                return {
+                    "success": True,
+                    "image_tag": image_tag,
+                    "message": f"Successfully built Docker image: {image_tag}",
+                    "build_log": build_log
+                }
+            else:
+                error_output = build_log if build_log else "Docker build failed"
+                # Include error lines if we have them
+                if error_lines:
+                    error_output = "[关键错误信息]:\n" + "".join(
+                        error_lines[-100:]) + "\n\n[完整日志摘要(最后100行)]:\n" + "\n".join(
+                        build_log.split('\n')[-100:]) if build_log else error_output
+
+                if websocket:
+                    await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
+                    await emit_ws_message(websocket, "build_log",
+                                           f"❌ 镜像构建失败\n")
+                return {
+                    "success": False,
+                    "error": error_output,
+                    "image_tag": image_tag,
+                    "build_log": error_output
+                }
 
     except Exception as e:
         # 记录详细的异常信息用于调试，但不暴露给用户
