@@ -496,8 +496,8 @@ def should_continue(state: WorkflowState) -> str:
     if state["build_result"].get("success"):
         if websocket:
             try:
-                # 使用 ensure_future 替代 create_task 来避免 RuntimeWarning
-                asyncio.ensure_future(websocket.send_text(json.dumps({
+                # 使用 get_event_loop().create_task 替代 create_task 来避免 RuntimeWarning
+                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "✅ 构建成功，工作流结束"
                 })))
@@ -510,14 +510,18 @@ def should_continue(state: WorkflowState) -> str:
     if state["iteration"] >= state["max_iterations"]:
         if websocket:
             try:
-                asyncio.ensure_future(websocket.send_text(json.dumps({
+                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束"
                 })))
-                asyncio.ensure_future(websocket.send_text(json.dumps({
-                    "type": "build_log",
-                    "content": f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束\n"
-                })))
+                try:
+                    asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                        "type": "build_log",
+                        "content": f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束\n"
+                    })))
+                except RuntimeError:
+                    # 如果没有运行的事件循环，跳过消息发送
+                    pass
             except RuntimeError:
                 # 如果没有运行的事件循环，跳过消息发送
                 pass
@@ -527,7 +531,7 @@ def should_continue(state: WorkflowState) -> str:
     if not state["build_result"].get("success"):
         if websocket:
             try:
-                asyncio.ensure_future(websocket.send_text(json.dumps({
+                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "🔄 构建失败，进入反思阶段"
                 })))
@@ -538,7 +542,7 @@ def should_continue(state: WorkflowState) -> str:
     
     if websocket:
         try:
-            asyncio.ensure_future(websocket.send_text(json.dumps({
+            asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                 "type": "status",
                 "content": "🔚 工作流结束"
             })))
@@ -556,14 +560,18 @@ def should_retry(state: WorkflowState) -> str:
     if state["dockerfile_result"]["success"] and state["iteration"] < state["max_iterations"]:
         if websocket:
             try:
-                asyncio.ensure_future(websocket.send_text(json.dumps({
+                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "🔄 Dockerfile已改进，重新尝试构建"
                 })))
-                asyncio.ensure_future(websocket.send_text(json.dumps({
-                    "type": "build_log",
-                    "content": f"🔄 Dockerfile已改进，重新尝试构建 (第 {state['iteration'] + 1} 次尝试)\n"
-                })))
+                try:
+                    asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                        "type": "build_log",
+                        "content": f"🔄 Dockerfile已改进，重新尝试构建 (第 {state['iteration'] + 1} 次尝试)\n"
+                    })))
+                except RuntimeError:
+                    # 如果没有运行的事件循环，跳过消息发送
+                    pass
             except RuntimeError:
                 # 如果没有运行的事件循环，跳过消息发送
                 pass
@@ -573,16 +581,16 @@ def should_retry(state: WorkflowState) -> str:
     if websocket:
         if not state["dockerfile_result"]["success"]:
             try:
-                asyncio.ensure_future(websocket.send_text(json.dumps({
+                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "❌ Dockerfile改进失败，工作流结束"
                 })))
-                asyncio.ensure_future(websocket.send_text(json.dumps({
+                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                     "type": "build_log",
                     "content": "❌ Dockerfile改进失败，工作流结束\n"
                 })))
                 # 添加明确的错误消息类型，确保前端能正确处理
-                asyncio.ensure_future(websocket.send_text(json.dumps({
+                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                     "type": "error",
                     "content": "Dockerfile改进失败，已达到最大迭代次数或改进过程出错"
                 })))
@@ -591,16 +599,16 @@ def should_retry(state: WorkflowState) -> str:
                 pass
         elif state["iteration"] >= state["max_iterations"]:
             try:
-                asyncio.ensure_future(websocket.send_text(json.dumps({
+                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "⏹️ 已达到最大迭代次数，工作流结束"
                 })))
-                asyncio.ensure_future(websocket.send_text(json.dumps({
+                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                     "type": "build_log",
                     "content": "⏹️ 已达到最大迭代次数，工作流结束\n"
                 })))
                 # 添加明确的错误消息类型，确保前端能正确处理
-                asyncio.ensure_future(websocket.send_text(json.dumps({
+                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                     "type": "error",
                     "content": "已达到最大迭代次数，Docker镜像构建失败"
                 })))
@@ -609,7 +617,7 @@ def should_retry(state: WorkflowState) -> str:
                 pass
         else:
             try:
-                asyncio.ensure_future(websocket.send_text(json.dumps({
+                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "🔚 工作流结束"
                 })))
