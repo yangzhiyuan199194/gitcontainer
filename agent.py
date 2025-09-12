@@ -182,15 +182,23 @@ async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
     """生成Dockerfile工具"""
     websocket = state.get("websocket")
     if websocket:
-        await websocket.send_text(json.dumps({
-            "type": "status",
-            "content": "🐳 Generating Dockerfile with AI..."
-        }))
-        await websocket.send_text(json.dumps({
-            "type": "phase_start",
-            "content": "[生成阶段开始]",
-            "phase_type": "normal"
-        }))
+        try:
+            await websocket.send_text(json.dumps({
+                "type": "status",
+                "content": "🐳 Generating Dockerfile with AI..."
+            }))
+            await websocket.send_text(json.dumps({
+                "type": "phase_start",
+                "content": "[生成阶段开始]",
+                "phase_type": "normal"
+            }))
+        except WebSocketDisconnect:
+            logger.warning("WebSocket disconnected during phase start messages")
+            state["dockerfile_result"] = {
+                "success": False,
+                "error": "WebSocket disconnected before generation could start"
+            }
+            return state
     
     logger.info("Dockerfile生成Agent开始工作")
     
@@ -200,11 +208,14 @@ async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
             "error": "Repository analysis failed, cannot generate Dockerfile"
         }
         if websocket:
-            await websocket.send_text(json.dumps({
-                "type": "phase_end",
-                "content": "[生成阶段结束]",
-                "phase_type": "normal"
-            }))
+            try:
+                await websocket.send_text(json.dumps({
+                    "type": "phase_end",
+                    "content": "[生成阶段结束]",
+                    "phase_type": "normal"
+                }))
+            except WebSocketDisconnect:
+                logger.warning("WebSocket disconnected during phase end message")
         return state
     
     # Determine if the selected model supports streaming
@@ -222,11 +233,14 @@ async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
     )
     
     if websocket:
-        await websocket.send_text(json.dumps({
-            "type": "phase_end",
-            "content": "[生成阶段结束]",
-            "phase_type": "normal"
-        }))
+        try:
+            await websocket.send_text(json.dumps({
+                "type": "phase_end",
+                "content": "[生成阶段结束]",
+                "phase_type": "normal"
+            }))
+        except WebSocketDisconnect:
+            logger.warning("WebSocket disconnected during phase end message")
     
     state["dockerfile_result"] = dockerfile_result
     return state
@@ -236,19 +250,27 @@ async def build_image(state: WorkflowState) -> WorkflowState:
     """构建Docker镜像工具"""
     websocket = state.get("websocket")
     if websocket:
-        await websocket.send_text(json.dumps({
-            "type": "status",
-            "content": "🔨 Building Docker image..."
-        }))
-        await websocket.send_text(json.dumps({
-            "type": "phase_start",
-            "content": "[构建阶段开始]",
-            "phase_type": "normal"
-        }))
-        await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": "🚀 开始构建 Docker 镜像...\n"
-        }))
+        try:
+            await websocket.send_text(json.dumps({
+                "type": "status",
+                "content": "🔨 Building Docker image..."
+            }))
+            await websocket.send_text(json.dumps({
+                "type": "phase_start",
+                "content": "[构建阶段开始]",
+                "phase_type": "normal"
+            }))
+            await websocket.send_text(json.dumps({
+                "type": "build_log",
+                "content": "🚀 开始构建 Docker 镜像...\n"
+            }))
+        except WebSocketDisconnect:
+            logger.warning("WebSocket disconnected during phase start messages")
+            state["build_result"] = {
+                "success": False,
+                "error": "WebSocket disconnected before build could start"
+            }
+            return state
     
     logger.info("构建Agent开始工作")
     
@@ -258,26 +280,37 @@ async def build_image(state: WorkflowState) -> WorkflowState:
             "error": "Dockerfile generation failed, cannot build image"
         }
         if websocket:
-            await websocket.send_text(json.dumps({
-                "type": "build_log",
-                "content": "❌ Dockerfile生成失败，无法构建镜像\n"
-            }))
-            await websocket.send_text(json.dumps({
-                "type": "phase_end",
-                "content": "[构建阶段结束]",
-                "phase_type": "normal"
-            }))
+            try:
+                await websocket.send_text(json.dumps({
+                    "type": "build_log",
+                    "content": "❌ Dockerfile生成失败，无法构建镜像\n"
+                }))
+                await websocket.send_text(json.dumps({
+                    "type": "phase_end",
+                    "content": "[构建阶段结束]",
+                    "phase_type": "normal"
+                }))
+            except WebSocketDisconnect:
+                logger.warning("WebSocket disconnected during phase end message")
         return state
     
     if websocket:
-        await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": f"📦 项目名称: {state['clone_result']['repo_name']}\n"
-        }))
-        await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": f"📁 本地路径: {state['clone_result']['local_path']}\n"
-        }))
+        try:
+            await websocket.send_text(json.dumps({
+                "type": "build_log",
+                "content": f"📦 项目名称: {state['clone_result']['repo_name']}\n"
+            }))
+            await websocket.send_text(json.dumps({
+                "type": "build_log",
+                "content": f"📁 本地路径: {state['clone_result']['local_path']}\n"
+            }))
+        except WebSocketDisconnect:
+            logger.warning("WebSocket disconnected during build log messages")
+            state["build_result"] = {
+                "success": False,
+                "error": "WebSocket disconnected during build process"
+            }
+            return state
     
     build_result = await build_docker_image(
         dockerfile_content=state["dockerfile_result"]["dockerfile"],
@@ -288,26 +321,29 @@ async def build_image(state: WorkflowState) -> WorkflowState:
     
     # Send build result information
     if websocket:
-        if build_result["success"]:
+        try:
+            if build_result["success"]:
+                await websocket.send_text(json.dumps({
+                    "type": "build_log",
+                    "content": f"✅ Docker 镜像构建完成: {build_result['image_tag']}\n"
+                }))
+            else:
+                await websocket.send_text(json.dumps({
+                    "type": "build_log",
+                    "content": f"❌ Docker 镜像构建失败: {build_result.get('error', 'Unknown error')}\n"
+                }))
+                # 发送错误消息，确保前端能正确更新步骤状态
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "content": f"Docker 镜像构建失败: {build_result.get('error', 'Unknown error')}"
+                }))
             await websocket.send_text(json.dumps({
-                "type": "build_log",
-                "content": f"✅ Docker 镜像构建完成: {build_result['image_tag']}\n"
+                "type": "phase_end",
+                "content": "[构建阶段结束]",
+                "phase_type": "normal"
             }))
-        else:
-            await websocket.send_text(json.dumps({
-                "type": "build_log",
-                "content": f"❌ Docker 镜像构建失败: {build_result.get('error', 'Unknown error')}\n"
-            }))
-            # 发送错误消息，确保前端能正确更新步骤状态
-            await websocket.send_text(json.dumps({
-                "type": "error",
-                "content": f"Docker 镜像构建失败: {build_result.get('error', 'Unknown error')}"
-            }))
-        await websocket.send_text(json.dumps({
-            "type": "phase_end",
-            "content": "[构建阶段结束]",
-            "phase_type": "normal"
-        }))
+        except WebSocketDisconnect:
+            logger.warning("WebSocket disconnected during final build messages")
     
     state["build_result"] = build_result
     return state
@@ -399,6 +435,7 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
     """改进Dockerfile工具"""
     websocket = state.get("websocket")
     if websocket:
+        # 发送状态更新和阶段开始消息
         await websocket.send_text(json.dumps({
             "type": "status",
             "content": "🔄 Improving Dockerfile based on reflection..."
@@ -408,6 +445,7 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
             "content": "[改进阶段开始]",
             "phase_type": "smart"
         }))
+        # 在构建日志中记录尝试次数
         await websocket.send_text(json.dumps({
             "type": "build_log",
             "content": f"🔧 第 {state['iteration'] + 1} 次尝试改进Dockerfile...\n"
@@ -460,12 +498,14 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
     state["iteration"] += 1
     
     if websocket:
+        # 在阶段结束时发送结果信息
         if dockerfile_result["success"]:
             await websocket.send_text(json.dumps({
                 "type": "build_log",
                 "content": "✅ Dockerfile改进成功\n"
             }))
         else:
+            # 发送错误消息
             await websocket.send_text(json.dumps({
                 "type": "build_log",
                 "content": f"❌ Dockerfile改进失败: {dockerfile_result.get('error', 'Unknown error')}\n"
@@ -475,11 +515,15 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
                 "type": "error",
                 "content": f"Dockerfile改进失败: {dockerfile_result.get('error', 'Unknown error')}"
             }))
+        
+        # 发送阶段结束标记
         await websocket.send_text(json.dumps({
             "type": "phase_end",
             "content": "[改进阶段结束]",
             "phase_type": "smart"
         }))
+        
+        # 最后在构建日志中记录重新生成信息
         await websocket.send_text(json.dumps({
             "type": "build_log",
             "content": f"🔄 重新生成Dockerfile (第 {state['iteration']} 次尝试)\n"
@@ -488,7 +532,7 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
     return state
 
 
-def should_continue(state: WorkflowState) -> str:
+async def should_continue(state: WorkflowState) -> str:
     """决定是否继续构建或结束"""
     websocket = state.get("websocket")
     
@@ -496,8 +540,8 @@ def should_continue(state: WorkflowState) -> str:
     if state["build_result"].get("success"):
         if websocket:
             try:
-                # 使用 get_event_loop().create_task 替代 create_task 来避免 RuntimeWarning
-                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                # 使用 asyncio.create_task 替代 get_event_loop().create_task 来避免 RuntimeWarning
+                asyncio.create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "✅ 构建成功，工作流结束"
                 })))
@@ -510,18 +554,19 @@ def should_continue(state: WorkflowState) -> str:
     if state["iteration"] >= state["max_iterations"]:
         if websocket:
             try:
-                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                asyncio.create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束"
                 })))
-                try:
-                    asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
-                        "type": "build_log",
-                        "content": f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束\n"
-                    })))
-                except RuntimeError:
-                    # 如果没有运行的事件循环，跳过消息发送
-                    pass
+                asyncio.create_task(websocket.send_text(json.dumps({
+                    "type": "build_log",
+                    "content": f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束\n"
+                })))
+                # 添加明确的错误消息类型，确保前端能正确处理
+                asyncio.create_task(websocket.send_text(json.dumps({
+                    "type": "error",
+                    "content": "已达到最大迭代次数，Docker镜像构建失败"
+                })))
             except RuntimeError:
                 # 如果没有运行的事件循环，跳过消息发送
                 pass
@@ -531,7 +576,7 @@ def should_continue(state: WorkflowState) -> str:
     if not state["build_result"].get("success"):
         if websocket:
             try:
-                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                asyncio.create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "🔄 构建失败，进入反思阶段"
                 })))
@@ -542,7 +587,7 @@ def should_continue(state: WorkflowState) -> str:
     
     if websocket:
         try:
-            asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+            asyncio.create_task(websocket.send_text(json.dumps({
                 "type": "status",
                 "content": "🔚 工作流结束"
             })))
@@ -552,7 +597,7 @@ def should_continue(state: WorkflowState) -> str:
     return "end"
 
 
-def should_retry(state: WorkflowState) -> str:
+async def should_retry(state: WorkflowState) -> str:
     """决定是否重试构建"""
     websocket = state.get("websocket")
     
@@ -560,18 +605,14 @@ def should_retry(state: WorkflowState) -> str:
     if state["dockerfile_result"]["success"] and state["iteration"] < state["max_iterations"]:
         if websocket:
             try:
-                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                asyncio.create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "🔄 Dockerfile已改进，重新尝试构建"
                 })))
-                try:
-                    asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
-                        "type": "build_log",
-                        "content": f"🔄 Dockerfile已改进，重新尝试构建 (第 {state['iteration'] + 1} 次尝试)\n"
-                    })))
-                except RuntimeError:
-                    # 如果没有运行的事件循环，跳过消息发送
-                    pass
+                asyncio.create_task(websocket.send_text(json.dumps({
+                    "type": "build_log",
+                    "content": f"🔄 Dockerfile已改进，重新尝试构建 (第 {state['iteration'] + 1} 次尝试)\n"
+                })))
             except RuntimeError:
                 # 如果没有运行的事件循环，跳过消息发送
                 pass
@@ -581,16 +622,16 @@ def should_retry(state: WorkflowState) -> str:
     if websocket:
         if not state["dockerfile_result"]["success"]:
             try:
-                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                asyncio.create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "❌ Dockerfile改进失败，工作流结束"
                 })))
-                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                asyncio.create_task(websocket.send_text(json.dumps({
                     "type": "build_log",
                     "content": "❌ Dockerfile改进失败，工作流结束\n"
                 })))
                 # 添加明确的错误消息类型，确保前端能正确处理
-                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                asyncio.create_task(websocket.send_text(json.dumps({
                     "type": "error",
                     "content": "Dockerfile改进失败，已达到最大迭代次数或改进过程出错"
                 })))
@@ -599,16 +640,16 @@ def should_retry(state: WorkflowState) -> str:
                 pass
         elif state["iteration"] >= state["max_iterations"]:
             try:
-                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                asyncio.create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "⏹️ 已达到最大迭代次数，工作流结束"
                 })))
-                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                asyncio.create_task(websocket.send_text(json.dumps({
                     "type": "build_log",
                     "content": "⏹️ 已达到最大迭代次数，工作流结束\n"
                 })))
                 # 添加明确的错误消息类型，确保前端能正确处理
-                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                asyncio.create_task(websocket.send_text(json.dumps({
                     "type": "error",
                     "content": "已达到最大迭代次数，Docker镜像构建失败"
                 })))
@@ -617,7 +658,7 @@ def should_retry(state: WorkflowState) -> str:
                 pass
         else:
             try:
-                asyncio.get_event_loop().create_task(websocket.send_text(json.dumps({
+                asyncio.create_task(websocket.send_text(json.dumps({
                     "type": "status",
                     "content": "🔚 工作流结束"
                 })))
@@ -844,38 +885,31 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         # 运行工作流
         final_state = await app_workflow.ainvoke(initial_state)
         
-        # 构造最终结果
-        if final_state["build_result"].get("success"):
-            final_result = {
-                "project_name": final_state["dockerfile_result"].get("project_name", ""),
-                "technology_stack": final_state["dockerfile_result"].get("technology_stack", ""),
-                "dockerfile": final_state["dockerfile_result"].get("dockerfile", ""),
-                "base_image_reasoning": final_state["dockerfile_result"].get("base_image_reasoning", ""),
-                "additional_notes": final_state["dockerfile_result"].get("additional_notes", ""),
-                "image_build": final_state["build_result"],
-                "repo_info": {
-                    "name": final_state["clone_result"].get("repo_name", ""),
-                    "size_mb": final_state["clone_result"].get("repo_size_mb", 0),
-                    "file_count": final_state["clone_result"].get("file_count", 0)
-                }
+        # 构造最终结果 - 无论构建成功与否都发送结果
+        final_result = {
+            "project_name": final_state["dockerfile_result"].get("project_name", ""),
+            "technology_stack": final_state["dockerfile_result"].get("technology_stack", ""),
+            "dockerfile": final_state["dockerfile_result"].get("dockerfile", ""),
+            "base_image_reasoning": final_state["dockerfile_result"].get("base_image_reasoning", ""),
+            "additional_notes": final_state["dockerfile_result"].get("additional_notes", ""),
+            "image_build": final_state["build_result"],
+            "repo_info": {
+                "name": final_state["clone_result"].get("repo_name", ""),
+                "size_mb": final_state["clone_result"].get("repo_size_mb", 0),
+                "file_count": final_state["clone_result"].get("file_count", 0)
             }
-            
-            await websocket.send_text(json.dumps({
-                "type": "complete",
-                "content": "Generation complete!",
-                "result": final_result
-            }))
-            
-            # Store result in session for potential refresh
-            sessions[session_id]["result"] = final_result
-            sessions[session_id]["status"] = "complete"
-        else:
-            # 构建失败，发送错误信息
-            error_msg = final_state["build_result"].get("error", "Unknown error occurred during build")
-            await websocket.send_text(json.dumps({
-                "type": "error",
-                "content": f"构建失败: {error_msg}"
-            }))
+        }
+        
+        # 发送最终结果 - 无论构建成功与否
+        await websocket.send_text(json.dumps({
+            "type": "complete",
+            "content": "Generation complete!",
+            "result": final_result
+        }))
+        
+        # Store result in session for potential refresh
+        sessions[session_id]["result"] = final_result
+        sessions[session_id]["status"] = "complete"
             
     except WebSocketDisconnect:
         print(f"WebSocket disconnected for session {session_id}")

@@ -59,6 +59,7 @@ async def build_docker_image(
 
             # Send status message about the build
             if websocket:
+                from tools.utils import emit_ws_message
                 await emit_ws_message(websocket, "status",
                                        f"🔨 正在构建 Docker 镜像...")
                 await emit_ws_message(websocket, "build_log", f"🚀 开始构建 Docker 镜像: {image_tag}\n")
@@ -103,6 +104,7 @@ async def build_docker_image(
                 if line_count > max_lines:
                     if line_count == max_lines + 1:  # Only send this message once
                         if websocket:
+                            from tools.utils import emit_ws_message
                             await emit_ws_message(websocket, "build_log",
                                                    f"\n... [Output truncated to {max_lines} lines] ...\n")
 
@@ -115,6 +117,7 @@ async def build_docker_image(
 
                 # Send each line to the WebSocket if available
                 if websocket:
+                    from tools.utils import emit_ws_message
                     # Check if WebSocket is still active before sending
                     if not await emit_ws_message(websocket, "build_log", decoded_line):
                         print("WebSocket closed, stopping log streaming")
@@ -127,6 +130,7 @@ async def build_docker_image(
 
             if build_process.returncode == 0:
                 if websocket:
+                    from tools.utils import emit_ws_message
                     await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
                     await emit_ws_message(websocket, "build_log", f"✅ 镜像构建成功: {image_tag}\n")
                 return {
@@ -144,6 +148,7 @@ async def build_docker_image(
                         build_log.split('\n')[-100:]) if build_log else error_output
 
                 if websocket:
+                    from tools.utils import emit_ws_message
                     await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
                     await emit_ws_message(websocket, "build_log",
                                            f"❌ 镜像构建失败\n")

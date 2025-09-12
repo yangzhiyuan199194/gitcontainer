@@ -855,18 +855,38 @@
                         // Also show error in status message
                         showError(data.content);
                         break;
+                    case 'partial_complete':
+                        console.log('Marking build step as failed but showing generated Dockerfile');
+                        // 即使构建失败也要显示生成的Dockerfile
+                        updateStepStatus('build', 'failed');
+                        // 添加完成分隔符
+                        showStepContent('content', '\n[任务完成 - 构建失败但已生成Dockerfile]\n' + '='.repeat(50) + '\n');
+                        // 确保在DOM更新完成后显示结果
+                        setTimeout(() => {
+                            if (typeof showComplete === 'function') {
+                                showComplete(data.result);
+                            } else {
+                                console.error('showComplete function not found');
+                            }
+                        }, 100);
+                        break;
                     case 'complete':
                         console.log('Marking build step as completed');
-                        // 只有在构建成功时才将build步骤标记为completed
                         // 检查result中的image_build是否成功
                         if (data.result && data.result.image_build && data.result.image_build.success) {
                             updateStepStatus('build', 'completed');
+                            showStepContent('content', '\n[任务完成]\n' + '='.repeat(50) + '\n');
+                        } else {
+                            updateStepStatus('build', 'failed');
+                            showStepContent('content', '\n[任务完成 - 构建失败但已生成Dockerfile]\n' + '='.repeat(50) + '\n');
                         }
-                        // 添加完成分隔符
-                        showStepContent('content', '\n[任务完成]\n' + '='.repeat(50) + '\n');
                         // 确保在DOM更新完成后显示结果
                         setTimeout(() => {
-                            showComplete(data.result);
+                            if (typeof showComplete === 'function') {
+                                showComplete(data.result);
+                            } else {
+                                console.error('showComplete function not found');
+                            }
                         }, 100);
                         break;
                     default:
@@ -1029,6 +1049,112 @@
             }
         }
         
+        // 添加showComplete函数，用于展示生成的Dockerfile和相关信息
+        function showComplete(result) {
+            console.log('Showing complete result:', result);
+            
+            // 隐藏加载动画和状态消息
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const statusMessage = document.getElementById('status-message');
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
+            if (statusMessage) statusMessage.style.display = 'none';
+            
+            // 显示结果区域
+            const resultSection = document.getElementById('result-section');
+            if (resultSection) {
+                resultSection.style.display = 'block';
+            } else {
+                console.error('Result section not found');
+            }
+            
+            // 填充结果内容
+            if (result) {
+                // 项目信息
+                const projectNameElement = document.getElementById('project-name');
+                if (projectNameElement) projectNameElement.textContent = result.project_name || 'N/A';
+                
+                // 技术栈信息
+                const techStackElement = document.getElementById('tech-stack');
+                if (techStackElement) techStackElement.textContent = result.technology_stack || 'N/A';
+                
+                // 基础镜像选择理由
+                const baseImageReasoningElement = document.getElementById('base-image-reasoning');
+                if (baseImageReasoningElement) baseImageReasoningElement.textContent = result.base_image_reasoning || 'N/A';
+                
+                // 附加说明
+                const additionalNotesElement = document.getElementById('additional-notes');
+                if (additionalNotesElement) additionalNotesElement.textContent = result.additional_notes || 'N/A';
+                
+                // 构建结果
+                const buildResultElement = document.getElementById('build-result');
+                if (buildResultElement) {
+                    if (result.image_build && result.image_build.success) {
+                        buildResultElement.innerHTML = `<span style="color: #10B981; font-weight: bold;">✅ 构建成功: ${result.image_build.image_tag || 'N/A'}</span>`;
+                    } else if (result.image_build) {
+                        buildResultElement.innerHTML = `<span style="color: #EF4444; font-weight: bold;">❌ 构建失败: ${result.image_build.error || '未知错误'}</span>`;
+                    } else {
+                        buildResultElement.innerHTML = '<span style="color: #6B7280;">未进行构建</span>';
+                    }
+                }
+                
+                // 仓库信息
+                if (result.repo_info) {
+                    const repoNameElement = document.getElementById('repo-name');
+                    if (repoNameElement) repoNameElement.textContent = result.repo_info.name || 'N/A';
+                    
+                    const repoSizeElement = document.getElementById('repo-size');
+                    if (repoSizeElement) repoSizeElement.textContent = result.repo_info.size_mb ? `${result.repo_info.size_mb} MB` : 'N/A';
+                    
+                    const fileCountElement = document.getElementById('file-count');
+                    if (fileCountElement) fileCountElement.textContent = result.repo_info.file_count || 'N/A';
+                }
+                
+                // 初始化编辑器（如果尚未初始化）
+                if (typeof initializeEditors === 'function') {
+                    initializeEditors();
+                } else {
+                    // 如果initializeEditors函数不存在，直接初始化编辑器
+                    initDockerfileEditorManually(result.dockerfile || '# 未生成 Dockerfile');
+                }
+                
+                // 设置编辑器内容
+                if (typeof dockerfileEditor !== 'undefined' && dockerfileEditor) {
+                    dockerfileEditor.setValue(result.dockerfile || '# 未生成 Dockerfile');
+                }
+                
+                if (typeof composeEditor !== 'undefined' && composeEditor) {
+                    // 这里暂时留空，因为当前版本不支持 docker-compose
+                    composeEditor.setValue('# 当前版本暂不支持 docker-compose');
+                }
+            }
+        }
+        
+        // 手动初始化Dockerfile编辑器的函数
+        function initDockerfileEditorManually(content) {
+            console.log('手动初始化 Dockerfile 编辑器');
+            const dockerfileContainer = document.getElementById('dockerfile-editor');
+            if (dockerfileContainer) {
+                // 清空容器
+                dockerfileContainer.innerHTML = '';
+                
+                // 创建一个文本区域作为备选方案
+                const textarea = document.createElement('textarea');
+                textarea.value = content || '# 未生成 Dockerfile';
+                textarea.style.width = '100%';
+                textarea.style.height = '400px';
+                textarea.style.fontFamily = 'Monaco, Menlo, "Ubuntu Mono", monospace';
+                textarea.style.fontSize = '14px';
+                textarea.style.padding = '10px';
+                textarea.style.border = '1px solid #D1D5DB';
+                textarea.style.borderRadius = '0.375rem';
+                textarea.style.backgroundColor = '#ffffff';
+                textarea.style.resize = 'vertical';
+                textarea.readOnly = true;
+                
+                dockerfileContainer.appendChild(textarea);
+            }
+        }
+
         // 实现手动调整大小功能
         function makeResizable() {
             const resizableContainer = document.querySelector('.resizable-container');
