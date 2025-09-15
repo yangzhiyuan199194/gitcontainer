@@ -17,6 +17,8 @@ from langgraph.graph import StateGraph, END
 from typing_extensions import TypedDict
 
 from tools import clone_repo_tool, gitingest_tool, create_container_tool, build_docker_image
+from tools.llm_client import LLMClient
+from tools.create_container import create_reflection_prompt
 
 # Load environment variables
 load_dotenv()
@@ -391,9 +393,12 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
     # 构建失败，需要反思
     logger.info("检测到构建失败，开始分析原因")
     
-    # 获取失败日志
+    # 获取失败日志和错误信息
     build_log = state["build_result"].get("build_log", "")
     error_message = state["build_result"].get("error", "")
+    
+    # 获取当前 Dockerfile 内容
+    dockerfile_content = state["dockerfile_result"].get("dockerfile", "")
     
     if websocket:
         await websocket.send_text(json.dumps({
@@ -406,22 +411,125 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
         }))
         await websocket.send_text(json.dumps({
             "type": "build_log",
-            "content": "💡 正在生成改进建议...\n"
+            "content": "💡 正在使用 AI 分析失败原因和改进建议...\n"
         }))
     
-    # 在实际应用中，这里应该调用LLM分析错误原因并提出改进建议
-    # 简化版本，我们只记录错误信息
-    state["reflection_result"] = {
-        "needed": True,
-        "build_log": build_log,
-        "error_message": error_message,
-        "improvements": ["需要重新生成Dockerfile以解决构建问题"]
-    }
+    # 使用 LLM 分析构建失败原因
+    try:
+
+
+        
+        # 初始化 LLM 客户端
+        llm_client = LLMClient()
+        
+        # 截断内容以适应上下文窗口
+        truncated_content = state["analysis_result"]["content"]
+        if len(truncated_content) > 30000:  # 为反思留出更多空间
+            truncated_content = truncated_content[:30000] + "\n\n... [Content truncated due to length] ..."
+        
+        # 创建分析 prompt
+        prompt = create_reflection_prompt(
+            dockerfile_content=dockerfile_content,
+            build_log=build_log,
+            error_message=error_message,
+            gitingest_summary=state["analysis_result"]["summary"],
+            gitingest_tree=state["analysis_result"]["tree"],
+            truncated_content=truncated_content
+        )
+        
+        # 构建消息
+        messages = [
+            {
+                "role": "system",
+                "content": "You are an expert DevOps engineer specializing in Docker containerization. Analyze Docker build failures and provide specific improvement suggestions. ALWAYS respond with valid JSON only - no explanations, no code blocks. Just pure JSON that can be parsed directly."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+        
+        # 调用 LLM 进行分析
+        llm_result = await llm_client.call_llm(
+            messages=messages,
+            model=state["model"],
+            temperature=0.3,
+            max_tokens=20000,
+            stream=False,  # 不使用流式响应
+            websocket=websocket
+        )
+        
+        if llm_result["success"]:
+            # 解析 LLM 响应
+            try:
+                import json as json_module  # 避免与全局json模块冲突
+                analysis_result = json_module.loads(llm_result["content"])
+                
+                state["reflection_result"] = {
+                    "needed": True,
+                    "build_log": build_log,
+                    "error_message": error_message,
+                    "root_cause": analysis_result.get("root_cause", ""),
+                    "issues": analysis_result.get("issues", []),
+                    "suggestions": analysis_result.get("suggestions", []),
+                    "revised_dockerfile": analysis_result.get("revised_dockerfile", "")
+                }
+                
+                if websocket:
+                    await websocket.send_text(json.dumps({  # 使用全局json模块
+                        "type": "build_log",
+                        "content": f"🔍 根本原因分析: {analysis_result.get('root_cause', 'N/A')}\n"
+                    }))
+                    await websocket.send_text(json.dumps({
+                        "type": "build_log",
+                        "content": f"🔧 发现的问题:\n"
+                    }))
+                    for issue in analysis_result.get("issues", []):
+                        await websocket.send_text(json.dumps({
+                            "type": "build_log",
+                            "content": f"  • {issue}\n"
+                        }))
+                    await websocket.send_text(json.dumps({
+                        "type": "build_log",
+                        "content": f"💡 改进建议:\n"
+                    }))
+                    for suggestion in analysis_result.get("suggestions", []):
+                        await websocket.send_text(json.dumps({
+                            "type": "build_log",
+                            "content": f"  • {suggestion}\n"
+                        }))
+            except Exception as e:
+                logger.error(f"无法解析 LLM 响应为 JSON: {str(e)}")
+                # 如果 JSON 解析失败，使用简化版本
+                state["reflection_result"] = {
+                    "needed": True,
+                    "build_log": build_log,
+                    "error_message": error_message,
+                    "improvements": ["需要重新生成Dockerfile以解决构建问题"]
+                }
+        else:
+            # 如果 LLM 调用失败，使用简化版本
+            logger.warning("LLM 分析失败，使用简化版本")
+            state["reflection_result"] = {
+                "needed": True,
+                "build_log": build_log,
+                "error_message": error_message,
+                "improvements": ["需要重新生成Dockerfile以解决构建问题"]
+            }
+    except Exception as e:
+        logger.error(f"反思过程中发生错误: {str(e)}")
+        # 出错时使用简化版本
+        state["reflection_result"] = {
+            "needed": True,
+            "build_log": build_log,
+            "error_message": error_message,
+            "improvements": ["需要重新生成Dockerfile以解决构建问题"]
+        }
     
     if websocket:
         await websocket.send_text(json.dumps({
             "type": "build_log",
-            "content": f"🤔 反思构建失败原因: {error_message}\n"
+            "content": f"🤔 反思构建失败原因完成\n"
         }))
         await websocket.send_text(json.dumps({
             "type": "phase_end",
@@ -468,19 +576,55 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
         return state
     
     # 基于反思结果生成改进的Dockerfile
-    # 在实际应用中，这里应该使用LLM生成新的Dockerfile
     logger.info("基于反思结果重新生成Dockerfile")
     
     if websocket:
         await websocket.send_text(json.dumps({
             "type": "build_log",
-            "content": "📝 基于以下错误信息重新生成Dockerfile:\n"
+            "content": "📝 基于以下错误信息和改进建议重新生成Dockerfile:\n"
         }))
+        
+        # 显示错误信息
         await websocket.send_text(json.dumps({
             "type": "build_log",
             "content": f"   错误: {state['reflection_result']['error_message']}\n"
         }))
+        
+        # 如果有详细的分析结果，显示它们
+        if "root_cause" in state["reflection_result"]:
+            await websocket.send_text(json.dumps({
+                "type": "build_log",
+                "content": f"   根本原因: {state['reflection_result']['root_cause']}\n"
+            }))
+            await websocket.send_text(json.dumps({
+                "type": "build_log",
+                "content": f"   发现的问题:\n"
+            }))
+            for issue in state["reflection_result"].get("issues", []):
+                await websocket.send_text(json.dumps({
+                    "type": "build_log",
+                    "content": f"     • {issue}\n"
+                }))
+            await websocket.send_text(json.dumps({
+                "type": "build_log",
+                "content": f"   改进建议:\n"
+            }))
+            for suggestion in state["reflection_result"].get("suggestions", []):
+                await websocket.send_text(json.dumps({
+                    "type": "build_log",
+                    "content": f"     • {suggestion}\n"
+                }))
 
+    # 构建附加指令，包含反思结果
+    additional_instructions = state["additional_instructions"] or ""
+    if "root_cause" in state["reflection_result"]:
+        # 使用详细的分析结果
+        improvement_points = "\n".join(state["reflection_result"].get("suggestions", []))
+        additional_instructions += f"\n\n基于以下分析结果改进 Dockerfile:\n{improvement_points}"
+    else:
+        # 使用简化的改进信息
+        additional_instructions += f"\n构建错误信息: {state['reflection_result']['error_message']}"
+    
     # Determine if the selected model supports streaming
     stream_support = get_model_stream_support(state["model"]) if state["model"] else True
     
@@ -490,7 +634,7 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
         gitingest_content=state["analysis_result"]["content"],
         git_dockerfile=state["analysis_result"]["git_dockerfile"],
         project_name=state["clone_result"]["repo_name"],
-        additional_instructions=f"{state['additional_instructions']}\n构建错误信息: {state['reflection_result']['error_message']}",
+        additional_instructions=additional_instructions,
         model=state["model"],
         websocket=websocket,
         stream=stream_support
