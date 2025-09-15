@@ -1,8 +1,45 @@
 import asyncio
+import logging
 import os
 import json
 from gitingest import ingest_async
 from typing import Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
+
+async def search_dockerfile(local_repo_path: str) -> Optional[str]:
+    """
+    Search for existing Dockerfile in the repository.
+    
+    Args:
+        local_repo_path (str): The local path to the cloned repository
+        
+    Returns:
+        Optional[str]: Content of the shortest path Dockerfile if found, None otherwise
+    """
+    try:
+        # Find all Dockerfile paths in the repository
+        dockerfile_paths = []
+        
+        # Walk through the directory structure
+        for root, dirs, files in os.walk(local_repo_path):
+            for file in files:
+                if file.lower() == "dockerfile":
+                    dockerfile_paths.append(os.path.join(root, file))
+        
+        # If no Dockerfile found, return None
+        if not dockerfile_paths:
+            return None
+            
+        # Sort by path length and return the content of the shortest path
+        shortest_path = min(dockerfile_paths, key=len)
+        
+        with open(shortest_path, 'r', encoding='utf-8') as f:
+            return f.read()
+            
+    except Exception as e:
+        logger.error(f"Error searching for Dockerfile: {str(e)}")
+        return None
 
 
 async def gitingest_tool(local_repo_path: str, websocket: Optional[Any] = None) -> Dict[str, Any]:
@@ -14,7 +51,7 @@ async def gitingest_tool(local_repo_path: str, websocket: Optional[Any] = None) 
         websocket (Optional[Any]): WebSocket connection for streaming output
         
     Returns:
-        Dict[str, Any]: Dictionary containing summary, tree, and content
+        Dict[str, Any]: Dictionary containing summary, tree, content, and git_dockerfile
     """
     try:
         # Check if the local path exists
@@ -46,6 +83,10 @@ async def gitingest_tool(local_repo_path: str, websocket: Optional[Any] = None) 
                 ),
                 timeout=120.0  # 2 minute timeout
             )
+
+            logger.info("summary: %s", summary)
+            logger.info("tree: %s", tree)
+
         except asyncio.TimeoutError:
             error_msg = "Repository analysis timed out (took more than 2 minutes). The repository might be too large."
             if websocket:
@@ -67,17 +108,25 @@ async def gitingest_tool(local_repo_path: str, websocket: Optional[Any] = None) 
             }))
             await websocket.send_text(json.dumps({
                 "type": "chunk",
+                "content": f"📊 Analysis complete. tree: {tree}\n"
+            }))
+            await websocket.send_text(json.dumps({
+                "type": "chunk",
                 "content": "🧠 Analyzing technology stack...\n"
             }))
         
+        # Search for existing Dockerfile
+        git_dockerfile = await search_dockerfile(local_repo_path)
+
+        logger.info("git_dockerfile: %s", git_dockerfile)
         return {
             "success": True,
             "summary": summary,
             "tree": tree,
             "content": content,
-            "local_path": local_repo_path
+            "local_path": local_repo_path,
+            "git_dockerfile": git_dockerfile
         }
-        
     except Exception as e:
         error_msg = f"Error during repository analysis: {str(e)}"
         if websocket:
@@ -85,20 +134,21 @@ async def gitingest_tool(local_repo_path: str, websocket: Optional[Any] = None) 
                 "type": "chunk",
                 "content": f"❌ {error_msg}\n"
             }))
-        return {
+    return {
             "success": False,
             "error": error_msg,
-            "local_path": local_repo_path
+            "local_path": local_repo_path,
+            "git_dockerfile": None
         }
 
 
 def run_gitingest(local_repo_path: str) -> Dict[str, Any]:
     """
     Synchronous wrapper for the gitingest tool.
-    
+
     Args:
         local_repo_path (str): The local path to the cloned repository to analyze
-        
+
     Returns:
         Dict[str, Any]: Dictionary containing analysis results
     """

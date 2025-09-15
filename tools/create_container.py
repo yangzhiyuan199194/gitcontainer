@@ -17,6 +17,7 @@ async def create_container_tool(
         gitingest_summary: str,
         gitingest_tree: str,
         gitingest_content: str,
+        git_dockerfile: str = None,
         project_name: Optional[str] = None,
         additional_instructions: Optional[str] = None,
         max_context_chars: int = 50000,  # Limit to stay within context window
@@ -71,6 +72,9 @@ async def create_container_tool(
 PROJECT SUMMARY:
 {gitingest_summary}
 
+THE PROJECT ALREADY HAS DOCKERFILE INFORMATION
+{git_dockerfile}
+
 DIRECTORY STRUCTURE:
 {gitingest_tree}
 
@@ -78,14 +82,15 @@ SOURCE CODE CONTEXT:
 {truncated_content}{additional_instructions_section}
 
 Please generate a Dockerfile that:
-1. Uses appropriate base images for the detected technology stack
-2. Includes proper dependency management
-3. Sets up the correct working directory structure
-4. Exposes necessary ports
-5. Includes health checks where appropriate
-6. Follows Docker best practices (multi-stage builds if beneficial, minimal layers, etc.)
-7. Handles environment variables and configuration
-8. Sets up proper user permissions for security
+1. If there is already Dockerfile information in the project, give priority to referring to this information
+2. Uses appropriate base images for the detected technology stack
+3. Includes proper dependency management
+4. Sets up the correct working directory structure
+5. Exposes necessary ports
+6. Includes health checks where appropriate
+7. Follows Docker best practices (multi-stage builds if beneficial, minimal layers, etc.)
+8. Handles environment variables and configuration
+9. Sets up proper user permissions for security
 
 If you detect multiple services or a complex architecture, provide a main Dockerfile and suggest docker-compose.yml structure.
 
