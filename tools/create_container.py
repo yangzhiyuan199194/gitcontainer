@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 import re
 from typing import Dict, Any, Optional
@@ -11,6 +12,8 @@ from tools.utils import emit_ws_message
 
 # Load environment variables
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 async def create_container_tool(
@@ -48,7 +51,7 @@ async def create_container_tool(
         base_url = os.getenv("BASE_URL")
         inf_api_key = os.getenv("INF_API_KEY")
         default_model = os.getenv("MODEL", "gpt-4o-mini")
-        
+
         # Use provided model or fallback to default
         model_to_use = model or default_model
 
@@ -79,7 +82,10 @@ DIRECTORY STRUCTURE:
 {gitingest_tree}
 
 SOURCE CODE CONTEXT:
-{truncated_content}{additional_instructions_section}
+{truncated_content}
+
+Additional instructions for the Dockerfile generation
+{additional_instructions_section}
 
 Please generate a Dockerfile that:
 1. If there is already Dockerfile information in the project, give priority to referring to this information
@@ -105,7 +111,7 @@ Required JSON format:
   "additional_notes": "Any important setup or deployment notes",
   "docker_compose_suggestion": "Optional docker-compose.yml content if multiple services detected"
 }}"""
-
+        logger.info("create container prompt:%s", prompt)
         # Make API call to generate Dockerfile with streaming
         websocket_active = await emit_ws_message(websocket, "status", "🐳 Generating Dockerfile...")
         if websocket_active:
@@ -175,7 +181,7 @@ Required JSON format:
             print(dockerfile_response)
             print("-" * 50)
             print("✅ Generation complete!\n")
-            
+
             # Send the entire response at once if WebSocket is active
             if websocket_active:
                 await emit_ws_message(websocket, "stream_start", "Starting generation...")
@@ -213,12 +219,12 @@ Required JSON format:
                         stripped = line.strip()
                         if stripped.startswith('FROM ') or stripped.startswith('RUN ') or stripped.startswith(
                                 'COPY ') or stripped.startswith('WORKDIR ') or stripped.startswith(
-                                'EXPOSE ') or stripped.startswith('CMD ') or stripped.startswith('ENTRYPOINT '):
+                            'EXPOSE ') or stripped.startswith('CMD ') or stripped.startswith('ENTRYPOINT '):
                             in_dockerfile = True
                             dockerfile_lines.append(line)
                         elif in_dockerfile and (stripped.startswith('#') or stripped == '' or stripped.startswith(
                                 'ENV ') or stripped.startswith('ARG ') or stripped.startswith(
-                                'USER ') or stripped.startswith('VOLUME ') or stripped.startswith('LABEL ')):
+                            'USER ') or stripped.startswith('VOLUME ') or stripped.startswith('LABEL ')):
                             dockerfile_lines.append(line)
                         elif in_dockerfile and not stripped:
                             dockerfile_lines.append(line)
@@ -269,8 +275,6 @@ Required JSON format:
         return error_result
 
 
-
-
 def run_create_container(
         gitingest_summary: str,
         gitingest_tree: str,
@@ -296,7 +300,7 @@ def run_create_container(
         Dict[str, Any]: Dictionary containing generated Dockerfile and metadata
     """
     return asyncio.run(create_container_tool(
-        gitingest_summary, gitingest_tree, gitingest_content, project_name, additional_instructions, 
+        gitingest_summary, gitingest_tree, gitingest_content, project_name, additional_instructions,
         websocket=websocket, model=model
     ))
 
