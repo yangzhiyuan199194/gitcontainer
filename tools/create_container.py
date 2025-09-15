@@ -144,7 +144,7 @@ Required JSON format:
         print(f"Debug - Model: " + model)
         print(f"Debug - Messages count: {len(messages)}")
         print(f"Debug - Temperature: 0.3")
-        print(f"Debug - Max tokens: 2000")
+        print(f"Debug - Max tokens: 20000")
         print(f"Debug - Stream: {stream}")
 
         try:
@@ -152,7 +152,7 @@ Required JSON format:
                 model=model_to_use,  # Use the selected model for generation
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more consistent output
-                max_tokens=2000,  # Sufficient for Dockerfile generation
+                max_tokens=20000,  # Increased token limit for more complete Dockerfile generation
                 stream=stream,  # Use the stream parameter
                 extra_headers={'apikey': api_key} if api_key else None,
             )
