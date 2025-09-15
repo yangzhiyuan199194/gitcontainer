@@ -417,8 +417,6 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
     # 使用 LLM 分析构建失败原因
     try:
 
-
-        
         # 初始化 LLM 客户端
         llm_client = LLMClient()
         
@@ -449,13 +447,13 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
             }
         ]
         
-        # 调用 LLM 进行分析
+        # 调用 LLM 进行分析，使用流模式
         llm_result = await llm_client.call_llm(
             messages=messages,
             model=state["model"],
             temperature=0.3,
             max_tokens=20000,
-            stream=False,  # 不使用流式响应
+            stream=True,  # 使用流模式
             websocket=websocket
         )
         
@@ -476,13 +474,17 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
                 }
                 
                 if websocket:
-                    await websocket.send_text(json.dumps({  # 使用全局json模块
+                    await websocket.send_text(json.dumps({
                         "type": "build_log",
-                        "content": f"🔍 根本原因分析: {analysis_result.get('root_cause', 'N/A')}\n"
+                        "content": f"\n🔍 根本原因分析完成:\n"
                     }))
                     await websocket.send_text(json.dumps({
                         "type": "build_log",
-                        "content": f"🔧 发现的问题:\n"
+                        "content": f"  {analysis_result.get('root_cause', 'N/A')}\n"
+                    }))
+                    await websocket.send_text(json.dumps({
+                        "type": "build_log",
+                        "content": f"\n🔧 发现的问题:\n"
                     }))
                     for issue in analysis_result.get("issues", []):
                         await websocket.send_text(json.dumps({
@@ -491,7 +493,7 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
                         }))
                     await websocket.send_text(json.dumps({
                         "type": "build_log",
-                        "content": f"💡 改进建议:\n"
+                        "content": f"\n💡 改进建议:\n"
                     }))
                     for suggestion in analysis_result.get("suggestions", []):
                         await websocket.send_text(json.dumps({
@@ -529,7 +531,7 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
     if websocket:
         await websocket.send_text(json.dumps({
             "type": "build_log",
-            "content": f"🤔 反思构建失败原因完成\n"
+            "content": f"\n🤔 反思构建失败原因完成\n"
         }))
         await websocket.send_text(json.dumps({
             "type": "phase_end",
