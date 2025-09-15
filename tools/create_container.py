@@ -70,48 +70,60 @@ async def create_container_tool(
         if additional_instructions and additional_instructions.strip():
             additional_instructions_section = f"\n\nADDITIONAL INSTRUCTIONS:\n{additional_instructions.strip()}"
 
-        prompt = f"""Based on the following repository analysis, generate a comprehensive and production-ready Dockerfile.
+        # Prepare Dockerfile information section
+        dockerfile_info_section = ""
+        if git_dockerfile:
+            dockerfile_info_section = f"\nTHE PROJECT ALREADY HAS DOCKERFILE INFORMATION:\n{git_dockerfile}\n"
+        else:
+            dockerfile_info_section = "\nTHE PROJECT DOES NOT CONTAIN A DOCKERFILE CURRENTLY.\n"
+
+        prompt = f"""Based on the following repository analysis, generate a comprehensive and production-ready Dockerfile that will successfully build without errors.
 
 PROJECT SUMMARY:
-{gitingest_summary}
-
-THE PROJECT ALREADY HAS DOCKERFILE INFORMATION
-{git_dockerfile}
-
+{gitingest_summary}{dockerfile_info_section}
 DIRECTORY STRUCTURE:
 {gitingest_tree}
 
 SOURCE CODE CONTEXT:
-{truncated_content}
-
-Additional instructions for the Dockerfile generation
-{additional_instructions_section}
+{truncated_content}{additional_instructions_section}
 
 Please generate a Dockerfile that:
 1. If there is already Dockerfile information in the project, give priority to referring to this information
 2. Uses appropriate base images for the detected technology stack
-3. Includes proper dependency management
+3. Includes proper dependency management with attention to version compatibility
 4. Sets up the correct working directory structure
-5. Exposes necessary ports
-6. Includes health checks where appropriate
-7. Follows Docker best practices (multi-stage builds if beneficial, minimal layers, etc.)
-8. Handles environment variables and configuration
-9. Sets up proper user permissions for security
+5. Exposes necessary ports based on the application type
+6. Includes health checks where appropriate for the application type
+7. Follows Docker best practices:
+   - Use multi-stage builds when beneficial to reduce image size
+   - Combine related RUN commands to minimize layers
+   - Properly handle package manager caches (e.g., apt-get clean, rm -rf /var/lib/apt/lists/*)
+   - Use COPY instead of ADD unless specifically needed
+   - Set proper user permissions for security (do not run as root if possible)
+8. Handles environment variables and configuration appropriately
+9. Ensures all commands are compatible with the chosen base image
+10. Avoids common build errors:
+    - Always use specific versions for base images (avoid 'latest')
+    - Properly escape special characters in commands
+    - Ensure all required files are copied or created before being used
+    - Handle platform-specific dependencies correctly
+    - Install build dependencies before runtime dependencies where applicable
+    - Properly configure the entrypoint and command for the application type
 
-If you detect multiple services or a complex architecture, provide a main Dockerfile and suggest docker-compose.yml structure.
+If you detect multiple services or a complex architecture, provide a main Dockerfile for the primary service and suggest a docker-compose.yml structure.
 
 IMPORTANT: Respond ONLY with a valid JSON object. Do not include any explanations, or code blocks. The response must be parseable JSON.
 
 Required JSON format:
 {{
   "dockerfile": "FROM python:3.9-slim\\nWORKDIR /app\\nCOPY . .\\nRUN pip install -r requirements.txt\\nEXPOSE 8000\\nCMD [\\"python\\", \\"app.py\\"]",
-  "base_image_reasoning": "Explanation of why you chose the base image",
+  "base_image_reasoning": "Explanation of why you chose the base image, including why it will successfully build",
   "technology_stack": "Detected technologies and frameworks",
   "port_recommendations": ["8000", "80"],
-  "additional_notes": "Any important setup or deployment notes",
+  "additional_notes": "Any important setup or deployment notes, including potential build issues and how to avoid them",
   "docker_compose_suggestion": "Optional docker-compose.yml content if multiple services detected"
 }}"""
-        logger.info("create container prompt:%s", prompt)
+        # logger.info("create container prompt:%s", prompt)
         # Make API call to generate Dockerfile with streaming
         websocket_active = await emit_ws_message(websocket, "status", "🐳 Generating Dockerfile...")
         if websocket_active:
