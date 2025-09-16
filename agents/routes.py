@@ -150,8 +150,7 @@ async def generate_dockerfile_endpoint(
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     """WebSocket endpoint for streaming Dockerfile generation with multi-agent reflection."""
     await websocket.accept()
-    print(f"New WebSocket connection: {session_id}")
-    
+
     try:
         if session_id not in sessions:
             await websocket.send_text(json.dumps({

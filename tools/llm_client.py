@@ -33,7 +33,7 @@ class LLMClient:
         messages: List[Dict[str, str]],
         model: Optional[str] = None,
         temperature: float = 0.3,
-        max_tokens: int = 20000,
+        max_tokens: int = 16384,
         stream: bool = True,
         websocket: Optional[Any] = None,
         response_handler: Optional[Callable] = None
