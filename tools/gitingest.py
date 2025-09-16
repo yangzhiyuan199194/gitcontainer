@@ -24,7 +24,7 @@ async def search_dockerfile(local_repo_path: str) -> Optional[str]:
         # Walk through the directory structure
         for root, dirs, files in os.walk(local_repo_path):
             for file in files:
-                if file.lower() == "dockerfile":
+                if file.lower().startswith("dockerfile"):
                     dockerfile_paths.append(os.path.join(root, file))
         
         # If no Dockerfile found, return None
