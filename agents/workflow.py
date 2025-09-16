@@ -336,14 +336,6 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
     if websocket:
         await websocket.send_text(json.dumps({
             "type": "build_log",
-            "content": f"❌ 错误信息: {error_message}\n"
-        }))
-        await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": f"📝 构建日志摘要:\n{build_log[-1000:] if build_log else '无日志'}\n"
-        }))
-        await websocket.send_text(json.dumps({
-            "type": "build_log",
             "content": "💡 正在使用 AI 分析失败原因和改进建议...\n"
         }))
     
@@ -378,14 +370,15 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
                 "content": prompt
             }
         ]
-        
+        from agents.utils import get_model_stream_support
+        stream_support = get_model_stream_support(state["model"]) if state["model"] else True
         # 调用 LLM 进行分析，使用流模式
         llm_result = await llm_client.call_llm(
             messages=messages,
             model=state["model"],
             temperature=0.3,
             max_tokens=3000,
-            stream=True,  # 使用流模式
+            stream=stream_support,
             websocket=websocket
         )
         
@@ -518,12 +511,6 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
             "content": "📝 基于以下错误信息和改进建议重新生成Dockerfile:\n"
         }))
         
-        # 显示错误信息
-        await websocket.send_text(json.dumps({
-            "type": "build_log",
-            "content": f"   错误: {state['reflection_result']['error_message']}\n"
-        }))
-        
         # 如果有详细的分析结果，显示它们
         if "root_cause" in state["reflection_result"]:
             await websocket.send_text(json.dumps({
@@ -567,7 +554,7 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
         gitingest_summary=state["analysis_result"]["summary"],
         gitingest_tree=state["analysis_result"]["tree"],
         gitingest_content=state["analysis_result"]["content"],
-        git_dockerfile=state["analysis_result"]["git_dockerfile"],
+        # git_dockerfile=state["analysis_result"]["git_dockerfile"],
         project_name=state["clone_result"]["repo_name"],
         additional_instructions=additional_instructions,
         model=state["model"],

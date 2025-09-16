@@ -180,7 +180,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             build_result={},
             reflection_result={},
             iteration=0,
-            max_iterations=1,
+            max_iterations=2,
             final_result={},
             websocket=websocket,
             messages=[]
