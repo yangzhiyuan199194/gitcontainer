@@ -124,7 +124,7 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
             time.sleep(0.5)
         
         # Clone the repository using git command
-        clone_command = f"git clone {github_url} {local_path}"
+        clone_command = f"git clone --recursive {github_url} {local_path}"
         
         if websocket:
             await websocket.send_text(json.dumps({
