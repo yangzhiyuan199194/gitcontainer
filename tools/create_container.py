@@ -70,6 +70,7 @@ Please generate a Dockerfile that:
 9. Ensures all commands are compatible with the chosen base image
 10. Avoids common build errors:
     - Always use specific versions for base images (avoid 'latest')
+    - Use a definite existing base image and do not fabricate non-existent images at will
     - Properly escape special characters in commands
     - Ensure all required files are copied or created before being used
     - Handle platform-specific dependencies correctly
