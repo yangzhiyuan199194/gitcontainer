@@ -76,7 +76,7 @@ async def build_docker_image(
             build_process = await asyncio.create_subprocess_exec(
                 *build_args,
                 cwd=temp_dir,
-                env=os.environ,
+                env=dict(os.environ),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT  # Combine stderr with stdout
             )
