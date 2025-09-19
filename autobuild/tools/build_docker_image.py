@@ -64,7 +64,7 @@ async def build_docker_image(
             image_tag = f"{project_name.lower().replace('/', '-')}:{timestamp}"
 
             # Build the Docker image
-            build_args = ["docker", "build","--no-cache", "-t", image_tag, "."]
+            build_args = ["export http_proxy=\"http://127.0.0.1:8118\"","export https_proxy=\"http://127.0.0.1:8118\"","docker", "build","--no-cache", "-t", image_tag, "."]
 
             # Send status message about the build
             await ws_manager.send_status(f"🔨 正在构建 Docker 镜像...")
