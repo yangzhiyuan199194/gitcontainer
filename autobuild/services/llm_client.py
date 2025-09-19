@@ -1,27 +1,36 @@
+"""
+LLM client service for Gitcontainer application.
+
+This module provides a unified interface for interacting with various LLMs.
+"""
+
 import logging
-import os
 from typing import Dict, Any, Optional, List, Callable
 
 from openai import AsyncOpenAI
 
-from tools.utils import emit_ws_message
+from autobuild.core.config import Settings
+from autobuild.utils import get_websocket_manager
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load configuration
+settings = Settings()
+
 
 class LLMClient:
     """
-    通用LLM调用客户端，支持多种模型和流式/非流式响应
+    Universal LLM calling client, supporting multiple models and streaming/non-streaming responses.
     """
     
     def __init__(self):
-        """初始化LLM客户端"""
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        self.base_url = os.getenv("BASE_URL")
-        self.inf_api_key = os.getenv("INF_API_KEY")
-        self.default_model = os.getenv("MODEL", "gpt-4o-mini")
+        """Initialize LLM client."""
+        self.api_key = settings.openai_api_key
+        self.base_url = settings.base_url
+        self.inf_api_key = settings.inf_api_key
+        self.default_model = settings.model
         
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
@@ -39,26 +48,29 @@ class LLMClient:
         response_handler: Optional[Callable] = None
     ) -> Dict[str, Any]:
         """
-        调用LLM生成响应
+        Call LLM to generate response.
         
         Args:
-            messages: 对话消息列表
-            model: 使用的模型
-            temperature: 温度参数
-            max_tokens: 最大令牌数
-            stream: 是否流式响应
-            websocket: WebSocket连接用于流式传输
-            response_handler: 响应处理函数
+            messages: Conversation messages list
+            model: Model to use
+            temperature: Temperature parameter
+            max_tokens: Maximum tokens
+            stream: Whether to stream response
+            websocket: WebSocket connection for streaming
+            response_handler: Response handling function
             
         Returns:
-            包含响应内容和元数据的字典
+            Dictionary containing response content and metadata
         """
+        # Initialize WebSocket manager
+        ws_manager = get_websocket_manager(websocket)
+        
         try:
-            # 使用提供的模型或回退到默认模型
+            # Use provided model or fallback to default model
             model_to_use = model or self.default_model
             
-            # 发送状态消息
-            websocket_active = await emit_ws_message(websocket, "status", "🤖 正在调用AI模型...")
+            # Send status message
+            await ws_manager.send_status("🤖 正在调用AI模型...")
             
             print(f"Debug - About to make API call")
             print(f"Debug - Model: {model_to_use}")
@@ -67,7 +79,7 @@ class LLMClient:
             print(f"Debug - Max tokens: {max_tokens}")
             print(f"Debug - Stream: {stream}")
             
-            # 调用LLM
+            # Call LLM
             response = await self.client.chat.completions.create(
                 model=model_to_use,
                 messages=messages,
@@ -79,12 +91,11 @@ class LLMClient:
             
             print("Debug - API call initiated successfully")
             
-            # 收集响应
+            # Collect response
             response_content = ""
             if stream:
-                # 处理流式响应
-                if websocket_active:
-                    websocket_active = await emit_ws_message(websocket, "stream_start", "开始生成...")
+                # Handle streaming response
+                await ws_manager.send_stream_start("开始生成...")
                 print("📝 Response:")
                 print("-" * 50)
                 
@@ -94,16 +105,14 @@ class LLMClient:
                             content = chunk.choices[0].delta.content
                             print(content, end="", flush=True)
                             response_content += content
-                            # 只有WebSocket仍然活跃时才发送块
-                            if websocket_active:
-                                websocket_active = await emit_ws_message(websocket, "chunk", content)
+                            # Send chunk
+                            await ws_manager.send_chunk(content)
                 
                 print("\n" + "-" * 50)
                 print("✅ Generation complete!\n")
-                if websocket_active:
-                    await emit_ws_message(websocket, "status", "✅ 生成完成!")
+                await ws_manager.send_status("✅ 生成完成!")
             else:
-                # 处理非流式响应
+                # Handle non-streaming response
                 response_content = response.choices[0].message.content
                 print("📝 Response:")
                 print("-" * 50)
@@ -111,13 +120,12 @@ class LLMClient:
                 print("-" * 50)
                 print("✅ Generation complete!\n")
                 
-                # 如果WebSocket活跃，则发送整个响应
-                if websocket_active:
-                    await emit_ws_message(websocket, "stream_start", "开始生成...")
-                    await emit_ws_message(websocket, "chunk", response_content)
-                    await emit_ws_message(websocket, "status", "✅ 生成完成!")
+                # Send entire response
+                await ws_manager.send_stream_start("开始生成...")
+                await ws_manager.send_chunk(response_content)
+                await ws_manager.send_status("✅ 生成完成!")
             
-            # 如果提供了响应处理函数，则使用它处理响应
+            # If response handler is provided, use it to process response
             if response_handler:
                 return await response_handler(response_content)
             
@@ -130,8 +138,8 @@ class LLMClient:
             error_msg = f"LLM调用失败: {str(e)}"
             print(f"Debug - API call failed with error: {str(e)}")
             
-            # 发送错误消息
-            await emit_ws_message(websocket, "error", error_msg)
+            # Send error message
+            await ws_manager.send_error(error_msg)
             
             return {
                 "success": False,

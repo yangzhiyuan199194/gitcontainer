@@ -45,7 +45,7 @@ https://github.com/username/repo  →  https://gitcontainer.com/username/repo
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/cyclotruc/gitcontainer.git
-   cd gitcontainer
+   cd autobuild
    ```
 
 2. **Install dependencies:**

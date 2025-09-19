@@ -1,37 +1,56 @@
+"""
+API routes for Gitcontainer application.
+
+This module defines all the HTTP routes and WebSocket endpoints for the application.
+"""
+
 import asyncio
 import json
-import os
 import logging
-from typing import Dict, Any, Optional
-from fastapi import Request, Form, WebSocket, WebSocketDisconnect, HTTPException
+from typing import Dict, Any
+
+from fastapi import APIRouter, Request, Form, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pathlib import Path
 
-from agents.utils import parse_available_models, get_model_stream_support
-from agents.workflow import create_workflow
+from autobuild.core.config import Settings
+from autobuild.services.workflow import create_workflow
+from autobuild.utils.session_manager import SessionManager
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Setup templates
 templates = Jinja2Templates(directory="templates")
 
-# Store for session data
-sessions = {}
+# Setup router
+router = APIRouter()
+
+# Session manager
+session_manager = SessionManager()
+
+# Application settings
+settings = Settings()
 
 
+@router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    """Home page with the input form."""
-    # Get available models from environment variable
-    available_models = parse_available_models()
+    """
+    Home page with the input form.
+    
+    Args:
+        request (Request): FastAPI request object
+        
+    Returns:
+        TemplateResponse: Rendered home page
+    """
+    available_models = settings.get_available_models()
     
     # Get current model - first from available models, or fallback to environment or default
-    if available_models:
-        current_model = available_models[0]["name"]  # Default to first available model
-    else:
-        current_model = os.getenv("MODEL", "gpt-4o-mini")
+    current_model = (
+        available_models[0]["name"] if available_models 
+        else settings.model
+    )
     
     return templates.TemplateResponse("index.jinja", {
         "request": request,
@@ -45,10 +64,23 @@ async def home(request: Request):
     })
 
 
+@router.get("/{path:path}", response_class=HTMLResponse)
 async def dynamic_github_route(request: Request, path: str):
-    """Handle GitHub-style URLs by replacing gitcontainer.com with github.com."""
+    """
+    Handle GitHub-style URLs by replacing autobuild.com with github.com.
+    
+    Args:
+        request (Request): FastAPI request object
+        path (str): URL path
+        
+    Returns:
+        TemplateResponse: Rendered home page with pre-filled repo URL
+    """
     # Skip certain paths that shouldn't be treated as GitHub routes
-    skip_paths = {"health", "favicon.ico", "favicon-16x16.png", "favicon-32x32.png", "apple-touch-icon.png", "static", "ws"}
+    skip_paths = {
+        "health", "favicon.ico", "favicon-16x16.png", 
+        "favicon-32x32.png", "apple-touch-icon.png", "static", "ws"
+    }
     
     # Split path into segments
     segments = [segment for segment in path.split('/') if segment]
@@ -59,14 +91,11 @@ async def dynamic_github_route(request: Request, path: str):
     
     # Check if we have at least 2 segments (username/repo)
     if len(segments) < 2:
-        # Get available models from environment variable
-        available_models = parse_available_models()
-        
-        # Get current model - first from available models, or fallback to environment or default
-        if available_models:
-            current_model = available_models[0]["name"]  # Default to first available model
-        else:
-            current_model = os.getenv("MODEL", "gpt-4o-mini")
+        available_models = settings.get_available_models()
+        current_model = (
+            available_models[0]["name"] if available_models 
+            else settings.model
+        )
         
         return templates.TemplateResponse("index.jinja", {
             "request": request,
@@ -74,7 +103,7 @@ async def dynamic_github_route(request: Request, path: str):
             "loading": False,
             "streaming": False,
             "result": None,
-            "error": f"Invalid GitHub URL format. Expected format: gitcontainer.com/username/repository",
+            "error": "Invalid GitHub URL format. Expected format: autobuild.com/username/repository",
             "pre_filled": False,
             "available_models": [model["name"] for model in available_models],
             "current_model": current_model
@@ -85,13 +114,11 @@ async def dynamic_github_route(request: Request, path: str):
     github_url = f"https://github.com/{username}/{repo}"
     
     # Get available models from environment variable
-    available_models = parse_available_models()
-    
-    # Get current model - first from available models, or fallback to environment or default
-    if available_models:
-        current_model = available_models[0]["name"]  # Default to first available model
-    else:
-        current_model = os.getenv("MODEL", "gpt-4o-mini")
+    available_models = settings.get_available_models()
+    current_model = (
+        available_models[0]["name"] if available_models 
+        else settings.model
+    )
     
     return templates.TemplateResponse("index.jinja", {
         "request": request,
@@ -106,33 +133,42 @@ async def dynamic_github_route(request: Request, path: str):
     })
 
 
+@router.post("/", response_class=HTMLResponse)
 async def generate_dockerfile_endpoint(
     request: Request, 
     repo_url: str = Form(...),
     additional_instructions_hidden: str = Form(""),
     model: str = Form(None)
 ):
-    """Redirect to streaming page for Dockerfile generation."""
+    """
+    Redirect to streaming page for Dockerfile generation.
+    
+    Args:
+        request (Request): FastAPI request object
+        repo_url (str): GitHub repository URL
+        additional_instructions_hidden (str): Additional instructions for Dockerfile generation
+        model (str): Model to use for generation
+        
+    Returns:
+        TemplateResponse: Rendered page with streaming enabled
+    """
     # Store the repo URL, additional instructions, and model in a session
-    session_id = str(hash(repo_url + str(asyncio.get_event_loop().time())))
-    sessions[session_id] = {
+    session_id = session_manager.create_session({
         "repo_url": repo_url,
-        "additional_instructions": additional_instructions_hidden.strip() if additional_instructions_hidden else "",
-        "model": model,
-        "status": "pending"
-    }
+        "additional_instructions": (
+            additional_instructions_hidden.strip() 
+            if additional_instructions_hidden 
+            else ""
+        ),
+        "model": model
+    })
     
-    # Redirect to streaming page
-    # Get available models from environment variable
-    available_models = parse_available_models()
-    
-    # Get current model from form, or first available model, or environment variable
-    if model:
-        current_model = model
-    elif available_models:
-        current_model = available_models[0]["name"]  # Default to first available model
-    else:
-        current_model = os.getenv("MODEL", "gpt-4o-mini")
+    # Get available models
+    available_models = settings.get_available_models()
+    current_model = model or (
+        available_models[0]["name"] if available_models 
+        else settings.model
+    )
     
     return templates.TemplateResponse("index.jinja", {
         "request": request,
@@ -147,28 +183,36 @@ async def generate_dockerfile_endpoint(
     })
 
 
+@router.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    """WebSocket endpoint for streaming Dockerfile generation with multi-agent reflection."""
+    """
+    WebSocket endpoint for streaming Dockerfile generation with multi-agent reflection.
+    
+    Args:
+        websocket (WebSocket): WebSocket connection
+        session_id (str): Session identifier
+    """
     await websocket.accept()
 
     try:
-        if session_id not in sessions:
+        session_data = session_manager.get_session(session_id)
+        if not session_data:
             await websocket.send_text(json.dumps({
                 "type": "error",
                 "content": "Invalid session ID"
             }))
             return
         
-        repo_url = sessions[session_id]["repo_url"]
-        additional_instructions = sessions[session_id].get("additional_instructions", "")
-        model = sessions[session_id].get("model", None)
+        repo_url = session_data["repo_url"]
+        additional_instructions = session_data.get("additional_instructions", "")
+        model = session_data.get("model", None)
         
-        # 编译工作流
+        # Compile workflow
         workflow = create_workflow()
         app_workflow = workflow.compile()
         
-        # 初始化状态
-        from agents.workflow import WorkflowState
+        # Initialize state
+        from autobuild.services.workflow import WorkflowState
         initial_state = WorkflowState(
             repo_url=repo_url,
             additional_instructions=additional_instructions,
@@ -179,16 +223,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             build_result={},
             reflection_result={},
             iteration=0,
-            max_iterations=2,
+            max_iterations=settings.max_iterations,
             final_result={},
             websocket=websocket,
             messages=[]
         )
         
-        # 运行工作流
+        # Run workflow
         final_state = await app_workflow.ainvoke(initial_state)
         
-        # 构造最终结果 - 无论构建成功与否都发送结果
+        # Construct final result - send results regardless of build success
         final_result = {
             "project_name": final_state["dockerfile_result"].get("project_name", ""),
             "technology_stack": final_state["dockerfile_result"].get("technology_stack", ""),
@@ -203,7 +247,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             }
         }
         
-        # 发送最终结果 - 无论构建成功与否
+        # Send final result - regardless of build success
         await websocket.send_text(json.dumps({
             "type": "complete",
             "content": "Generation complete!",
@@ -211,14 +255,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         }))
         
         # Store result in session for potential refresh
-        sessions[session_id]["result"] = final_result
-        sessions[session_id]["status"] = "complete"
+        session_manager.update_session(session_id, {
+            "result": final_result,
+            "status": "complete"
+        })
             
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected for session {session_id}")
+        logger.info(f"WebSocket disconnected for session {session_id}")
     except Exception as e:
         error_msg = f"Unexpected error: {str(e)}"
-        print(error_msg)
+        logger.error(error_msg)
         # Check if websocket is still open before trying to send error message
         try:
             if websocket.client_state.name == 'CONNECTED':
@@ -227,16 +273,21 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "content": error_msg
                 }))
         except Exception as send_error:
-            print(f"Could not send error message, WebSocket likely closed: {send_error}")
+            logger.error(f"Could not send error message, WebSocket likely closed: {send_error}")
     finally:
         # Clean up session data
         try:
-            if session_id in sessions:
-                sessions[session_id]["status"] = "disconnected"
-        except:
+            session_manager.update_session(session_id, {"status": "disconnected"})
+        except Exception:
             pass
 
 
+@router.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """
+    Health check endpoint.
+    
+    Returns:
+        dict: Health status
+    """
     return {"status": "healthy"}

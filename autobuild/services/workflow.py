@@ -1,19 +1,34 @@
-import asyncio
+"""
+Workflow service for Gitcontainer application.
+
+This module provides the multi-agent workflow implementation for generating and building Docker images.
+"""
+
 import json
 import logging
-import os
 from typing import Dict, Any, Optional, List
-from fastapi import WebSocket, WebSocketDisconnect
+
+from fastapi import WebSocketDisconnect
 from langgraph.graph import StateGraph, END
 from typing_extensions import TypedDict
 
-from tools import clone_repo_tool, gitingest_tool, create_container_tool, build_docker_image
-from tools.llm_client import LLMClient
-from tools.create_container import create_reflection_prompt
+from autobuild.core.config import Settings
+from autobuild.prompts.dockerfile import create_reflection_prompt
+from autobuild.services.llm_client import LLMClient
+from autobuild.tools import (
+    clone_repo_tool,
+    gitingest_tool,
+    create_container_tool,
+    build_docker_image
+)
+from autobuild.utils import get_websocket_manager
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Create settings instance
+settings = Settings()
 
 
 class WorkflowState(TypedDict):
@@ -113,8 +128,6 @@ async def analyze_repository(state: WorkflowState) -> WorkflowState:
 
 async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
     """生成Dockerfile工具"""
-    from agents.utils import get_model_stream_support
-    
     websocket = state.get("websocket")
     if websocket:
         try:
@@ -154,7 +167,7 @@ async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
         return state
     
     # Determine if the selected model supports streaming
-    stream_support = get_model_stream_support(state["model"]) if state["model"] else True
+    stream_support = settings.get_model_stream_support(state["model"]) if state["model"] else True
     
     dockerfile_result = await create_container_tool(
         gitingest_summary=state["analysis_result"]["summary"],
@@ -370,8 +383,7 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
                 "content": prompt
             }
         ]
-        from agents.utils import get_model_stream_support
-        stream_support = get_model_stream_support(state["model"]) if state["model"] else True
+        stream_support = settings.get_model_stream_support(state["model"]) if state["model"] else True
         # 调用 LLM 进行分析，使用流模式
         llm_result = await llm_client.call_llm(
             messages=messages,
@@ -547,8 +559,7 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
         additional_instructions += f"\n构建错误信息: {state['reflection_result']['error_message']}"
     
     # Determine if the selected model supports streaming
-    from agents.utils import get_model_stream_support
-    stream_support = get_model_stream_support(state["model"]) if state["model"] else True
+    stream_support = settings.get_model_stream_support(state["model"]) if state["model"] else True
     
     dockerfile_result = await create_container_tool(
         gitingest_summary=state["analysis_result"]["summary"],
@@ -602,61 +613,65 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
 
 async def should_continue(state: WorkflowState) -> str:
     """决定是否继续构建或结束"""
-    from agents.utils import send_websocket_message
     websocket = state.get("websocket")
     
     # 如果构建成功，结束
     if state["build_result"].get("success"):
         if websocket:
-            await send_websocket_message(websocket, "status", "✅ 构建成功，工作流结束")
+            ws_manager = get_websocket_manager(websocket)
+            await ws_manager.send_status("✅ 构建成功，工作流结束")
         return "success"
     
     # 如果达到最大迭代次数，结束
     if state["iteration"] >= state["max_iterations"]:
         if websocket:
-            await send_websocket_message(websocket, "status", f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束")
-            await send_websocket_message(websocket, "build_log", f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束\n")
+            ws_manager = get_websocket_manager(websocket)
+            await ws_manager.send_status(f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束")
+            await ws_manager.send_build_log(f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束\n")
             # 添加明确的错误消息类型，确保前端能正确处理
-            await send_websocket_message(websocket, "error", "已达到最大迭代次数，Docker镜像构建失败")
+            await ws_manager.send_error("已达到最大迭代次数，Docker镜像构建失败")
         return "max_iterations_reached"
     
     # 如果需要反思，进入反思流程
     if not state["build_result"].get("success"):
         if websocket:
-            await send_websocket_message(websocket, "status", "🔄 构建失败，进入反思阶段")
+            ws_manager = get_websocket_manager(websocket)
+            await ws_manager.send_status("🔄 构建失败，进入反思阶段")
         return "reflect"
     
     if websocket:
-        await send_websocket_message(websocket, "status", "🔚 工作流结束")
+        ws_manager = get_websocket_manager(websocket)
+        await ws_manager.send_status("🔚 工作流结束")
     return "end"
 
 
 async def should_retry(state: WorkflowState) -> str:
     """决定是否重试构建"""
-    from agents.utils import send_websocket_message
     websocket = state.get("websocket")
     
     # 如果改进后可以重试
     if state["dockerfile_result"]["success"] and state["iteration"] < state["max_iterations"]:
         if websocket:
-            await send_websocket_message(websocket, "status", "🔄 Dockerfile已改进，重新尝试构建")
-            await send_websocket_message(websocket, "build_log", f"🔄 Dockerfile已改进，重新尝试构建 (第 {state['iteration'] + 1} 次尝试)\n")
+            ws_manager = get_websocket_manager(websocket)
+            await ws_manager.send_status("🔄 Dockerfile已改进，重新尝试构建")
+            await ws_manager.send_build_log(f"🔄 Dockerfile已改进，重新尝试构建 (第 {state['iteration'] + 1} 次尝试)\n")
         return "retry"
     
     # 否则结束
     if websocket:
+        ws_manager = get_websocket_manager(websocket)
         if not state["dockerfile_result"]["success"]:
-            await send_websocket_message(websocket, "status", "❌ Dockerfile改进失败，工作流结束")
-            await send_websocket_message(websocket, "build_log", "❌ Dockerfile改进失败，工作流结束\n")
+            await ws_manager.send_status("❌ Dockerfile改进失败，工作流结束")
+            await ws_manager.send_build_log("❌ Dockerfile改进失败，工作流结束\n")
             # 添加明确的错误消息类型，确保前端能正确处理
-            await send_websocket_message(websocket, "error", "Dockerfile改进失败，已达到最大迭代次数或改进过程出错")
+            await ws_manager.send_error("Dockerfile改进失败，已达到最大迭代次数或改进过程出错")
         elif state["iteration"] >= state["max_iterations"]:
-            await send_websocket_message(websocket, "status", "⏹️ 已达到最大迭代次数，工作流结束")
-            await send_websocket_message(websocket, "build_log", "⏹️ 已达到最大迭代次数，工作流结束\n")
+            await ws_manager.send_status("⏹️ 已达到最大迭代次数，工作流结束")
+            await ws_manager.send_build_log("⏹️ 已达到最大迭代次数，工作流结束\n")
             # 添加明确的错误消息类型，确保前端能正确处理
-            await send_websocket_message(websocket, "error", "已达到最大迭代次数，Docker镜像构建失败")
+            await ws_manager.send_error("已达到最大迭代次数，Docker镜像构建失败")
         else:
-            await send_websocket_message(websocket, "status", "🔚 工作流结束")
+            await ws_manager.send_status("🔚 工作流结束")
     return "end"
 
 

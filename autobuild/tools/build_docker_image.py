@@ -1,8 +1,14 @@
+"""
+Docker image building tool for Gitcontainer application.
+
+This module provides functionality for building Docker images from generated Dockerfiles.
+"""
+
 import asyncio
 import os
 from typing import Dict, Any, Optional
 
-from tools.utils import emit_ws_message
+from autobuild.utils import get_websocket_manager
 
 
 async def build_docker_image(
@@ -23,6 +29,9 @@ async def build_docker_image(
     Returns:
         Dict[str, Any]: Dictionary containing the build result and image information
     """
+    # Initialize WebSocket manager
+    ws_manager = get_websocket_manager(websocket)
+    
     try:
         import tempfile
         import shutil
@@ -58,14 +67,11 @@ async def build_docker_image(
             build_args = ["docker", "build","--no-cache", "-t", image_tag, "."]
 
             # Send status message about the build
-            if websocket:
-                from tools.utils import emit_ws_message
-                await emit_ws_message(websocket, "status",
-                                       f"🔨 正在构建 Docker 镜像...")
-                await emit_ws_message(websocket, "build_log", f"🚀 开始构建 Docker 镜像: {image_tag}\n")
-                await emit_ws_message(websocket, "build_log", f"📂 构建目录: {temp_dir}\n")
-                await emit_ws_message(websocket, "build_log", f"🏗️ 构建命令: {' '.join(build_args)}\n")
-                await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
+            await ws_manager.send_status(f"🔨 正在构建 Docker 镜像...")
+            await ws_manager.send_build_log(f"🚀 开始构建 Docker 镜像: {image_tag}\n")
+            await ws_manager.send_build_log(f"📂 构建目录: {temp_dir}\n")
+            await ws_manager.send_build_log(f"🏗️ 构建命令: {' '.join(build_args)}\n")
+            await ws_manager.send_build_log("=" * 50 + "\n")
 
             build_process = await asyncio.create_subprocess_exec(
                 *build_args,
@@ -103,25 +109,20 @@ async def build_docker_image(
                 # Limit the lines we collect to prevent memory issues
                 if line_count > max_lines:
                     if line_count == max_lines + 1:  # Only send this message once
-                        if websocket:
-                            from tools.utils import emit_ws_message
-                            await emit_ws_message(websocket, "build_log",
-                                                   f"\n... [Output truncated to {max_lines} lines] ...\n")
+                        await ws_manager.send_build_log(f"\n... [Output truncated to {max_lines} lines] ...\n")
 
-                            # Send important error lines if we have any
-                            if error_lines:
-                                await emit_ws_message(websocket, "build_log", f"\n[关键错误信息摘要]:\n")
-                                for error_line in error_lines[-50:]:  # Send last 50 error lines
-                                    await emit_ws_message(websocket, "build_log", error_line)
+                        # Send important error lines if we have any
+                        if error_lines:
+                            await ws_manager.send_build_log(f"\n[关键错误信息摘要]:\n")
+                            for error_line in error_lines[-50:]:  # Send last 50 error lines
+                                await ws_manager.send_build_log(error_line)
                     continue
 
-                # Send each line to the WebSocket if available
-                if websocket:
-                    from tools.utils import emit_ws_message
-                    # Check if WebSocket is still active before sending
-                    if not await emit_ws_message(websocket, "build_log", decoded_line):
-                        print("WebSocket closed, stopping log streaming")
-                        break
+                # Send each line to the WebSocket
+                # Check if WebSocket is still active before sending
+                if not await ws_manager.send_build_log(decoded_line):
+                    print("WebSocket closed, stopping log streaming")
+                    break
 
             print(f"Debug - Docker build process finished. Read {line_count} lines of output")
 
@@ -129,10 +130,8 @@ async def build_docker_image(
             print(f"Debug - Docker build process return code: {build_process.returncode}")
 
             if build_process.returncode == 0:
-                if websocket:
-                    from tools.utils import emit_ws_message
-                    await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
-                    await emit_ws_message(websocket, "build_log", f"✅ 镜像构建成功: {image_tag}\n")
+                await ws_manager.send_build_log("=" * 50 + "\n")
+                await ws_manager.send_build_log(f"✅ 镜像构建成功: {image_tag}\n")
                 return {
                     "success": True,
                     "image_tag": image_tag,
@@ -147,11 +146,8 @@ async def build_docker_image(
                         error_lines[-100:]) + "\n\n[完整日志摘要(最后100行)]:\n" + "\n".join(
                         build_log.split('\n')[-100:]) if build_log else error_output
 
-                if websocket:
-                    from tools.utils import emit_ws_message
-                    await emit_ws_message(websocket, "build_log", "=" * 50 + "\n")
-                    await emit_ws_message(websocket, "build_log",
-                                           f"❌ 镜像构建失败\n")
+                await ws_manager.send_build_log("=" * 50 + "\n")
+                await ws_manager.send_build_log(f"❌ 镜像构建失败\n")
                 return {
                     "success": False,
                     "error": error_output,
