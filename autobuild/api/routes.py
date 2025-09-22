@@ -88,8 +88,8 @@ async def build_detail(request: Request, repo_hash: str):
     build_record = None
     
     for record in build_records:
-        # 使用与build_history_manager中相同的哈希方法
-        record_hash = hashlib.md5(record["repo_url"].encode()).hexdigest()
+        # 使用与build_history_manager中相同的哈希方法 (SHA256)
+        record_hash = hashlib.sha256(record["repo_url"].encode()).hexdigest()
         if record_hash == repo_hash:
             build_record = record
             break
@@ -174,7 +174,7 @@ async def dynamic_github_route(request: Request, path: str):
     # Check if this repo has already been built successfully
     if build_history_manager.repo_already_built_successfully(github_url):
         # Redirect to build detail page
-        repo_hash = hashlib.md5(github_url.encode()).hexdigest()
+        repo_hash = hashlib.sha256(github_url.encode()).hexdigest()
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=f"/builds/{repo_hash}")
     
@@ -220,7 +220,7 @@ async def generate_dockerfile_endpoint(
     # Check if this repo has already been built successfully
     if build_history_manager.repo_already_built_successfully(repo_url):
         # Redirect to build detail page
-        repo_hash = hashlib.md5(repo_url.encode()).hexdigest()
+        repo_hash = hashlib.sha256(repo_url.encode()).hexdigest()
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=f"/builds/{repo_hash}", status_code=303)
     
@@ -280,7 +280,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         model = session_data.get("model", None)
         
         # Create log file path
-        repo_hash = hashlib.md5(repo_url.encode()).hexdigest()
+        repo_hash = hashlib.sha256(repo_url.encode()).hexdigest()
         log_file_path = f"build_history/logs/{repo_hash}.log"
         
         # Initialize WebSocket manager with log file

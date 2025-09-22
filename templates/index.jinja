@@ -310,7 +310,7 @@
                 <h2 class="text-xl font-bold text-gray-900 mb-4">已构建成功的项目</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {% for build in successful_builds %}
-                    <a href="/builds/{{ build.repo_url | replace('https://github.com/', '') | replace('/', '_') }}" 
+                    <a href="/builds/{{ build.repo_url | replace('https://', '') | replace('/', '_') | replace('.', '_') | replace(':', '_') }}" 
                        class="build-item block border border-gray-200 rounded-lg p-4 hover:border-blue-300">
                         <div class="flex justify-between items-start">
                             <div>
