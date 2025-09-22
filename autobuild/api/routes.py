@@ -89,8 +89,8 @@ async def build_detail(request: Request, repo_hash: str):
     
     for record in build_records:
         # 使用与build_history_manager中相同的哈希方法 (SHA256)
-        record_hash = hashlib.sha256(record["repo_url"].encode()).hexdigest()
-        if record_hash == repo_hash:
+        record_identifier = record["repo_url"].replace('https://github.com/', '').replace('http://github.com/', '').replace('/', '_')
+        if record_identifier == repo_hash:
             build_record = record
             break
     
