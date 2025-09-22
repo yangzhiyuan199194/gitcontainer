@@ -103,15 +103,8 @@ async def build_detail(request: Request, repo_hash: str):
         raise HTTPException(status_code=404, detail="Build record not found")
     
     # Load build logs if they exist
-    log_content = ""
-    log_file_path = f"build_history/logs/{repo_hash}.log"
-    if os.path.exists(log_file_path):
-        try:
-            with open(log_file_path, "r", encoding="utf-8") as f:
-                log_content = f.read()
-        except Exception as e:
-            log_content = f"Error reading log file: {str(e)}"
-    
+    log_content = build_history_manager.get_build_record(repo_url=build_record["repo_url"])
+
     available_models = settings.get_available_models()
     current_model = (
         available_models[0]["name"] if available_models 
