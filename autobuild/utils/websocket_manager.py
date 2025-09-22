@@ -10,6 +10,7 @@ import json
 import logging
 from enum import Enum
 from typing import Any, Optional, Union
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +35,17 @@ class WebSocketManager:
     over WebSocket connections, handling connection state checks and error handling.
     """
     
-    def __init__(self, websocket: Optional[Any] = None):
+    def __init__(self, websocket: Optional[Any] = None, log_file: Optional[str] = None):
         """
         Initialize WebSocket manager.
         
         Args:
             websocket (Optional[Any]): WebSocket connection
+            log_file (Optional[str]): File to log messages to
         """
         self.websocket = websocket
+        self.log_file = log_file
+        self.log_buffer = []
     
     async def send_message(self, message_type: Union[MessageType, str], content: str, **kwargs) -> bool:
         """
@@ -55,6 +59,9 @@ class WebSocketManager:
         Returns:
             bool: True if message was sent successfully, False otherwise
         """
+        # Log message
+        self._log_message(message_type, content, **kwargs)
+        
         if self.websocket is None:
             return False
             
@@ -79,6 +86,35 @@ class WebSocketManager:
         except Exception as e:
             logger.warning(f"Failed to send WebSocket message: {e}")
             return False
+    
+    def _log_message(self, message_type: Union[MessageType, str], content: str, **kwargs):
+        """
+        Log message to file if log_file is specified.
+        
+        Args:
+            message_type (Union[MessageType, str]): Type of message
+            content (str): Message content
+            **kwargs: Additional data
+        """
+        if self.log_file:
+            log_entry = {
+                "type": message_type.value if isinstance(message_type, MessageType) else message_type,
+                "content": content,
+                "timestamp": asyncio.get_event_loop().time() if asyncio.get_event_loop() else None,
+                **kwargs
+            }
+            self.log_buffer.append(log_entry)
+            
+            # Write to file immediately for real-time logging
+            try:
+                log_path = Path(self.log_file)
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Append to file
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+            except Exception as e:
+                logger.warning(f"Failed to log message to file: {e}")
     
     async def send_status(self, content: str) -> bool:
         """Send status message."""
@@ -121,24 +157,48 @@ class WebSocketManager:
             websocket (Any): New WebSocket connection
         """
         self.websocket = websocket
+    
+    def save_log_buffer(self, file_path: str) -> bool:
+        """
+        Save the log buffer to a file.
+        
+        Args:
+            file_path (str): Path to save the log buffer
+            
+        Returns:
+            bool: True if saved successfully, False otherwise
+        """
+        try:
+            path = Path(file_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(path, "w", encoding="utf-8") as f:
+                for entry in self.log_buffer:
+                    f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to save log buffer: {e}")
+            return False
 
 
 # Global WebSocket manager instance
 ws_manager = WebSocketManager()
 
 
-def get_websocket_manager(websocket: Optional[Any] = None) -> WebSocketManager:
+def get_websocket_manager(websocket: Optional[Any] = None, log_file: Optional[str] = None) -> WebSocketManager:
     """
     Get WebSocket manager instance.
     
     Args:
         websocket (Optional[Any]): WebSocket connection to use
+        log_file (Optional[str]): File to log messages to
         
     Returns:
         WebSocketManager: WebSocket manager instance
     """
-    if websocket is not None:
-        ws_manager.update_websocket(websocket)
+    if websocket is not None or log_file is not None:
+        return WebSocketManager(websocket, log_file)
     return ws_manager
 
 

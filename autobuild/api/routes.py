@@ -7,6 +7,7 @@ This module defines all the HTTP routes and WebSocket endpoints for the applicat
 import asyncio
 import json
 import logging
+import os
 from typing import Dict, Any
 
 from fastapi import APIRouter, Request, Form, WebSocket, WebSocketDisconnect, HTTPException
@@ -16,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 from autobuild.core.config import Settings
 from autobuild.services.workflow import create_workflow
 from autobuild.utils.session_manager import SessionManager
+from autobuild.utils.build_history import build_history_manager
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -36,7 +38,7 @@ settings = Settings()
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """
-    Home page with the input form.
+    Home page with the input form and list of successful builds.
     
     Args:
         request (Request): FastAPI request object
@@ -52,6 +54,9 @@ async def home(request: Request):
         else settings.model
     )
     
+    # Get successful build records
+    successful_builds = build_history_manager.get_successful_builds()
+    
     return templates.TemplateResponse("index.jinja", {
         "request": request,
         "repo_url": "",
@@ -59,6 +64,57 @@ async def home(request: Request):
         "streaming": False,
         "result": None,
         "error": None,
+        "available_models": [model["name"] for model in available_models],
+        "current_model": current_model,
+        "successful_builds": successful_builds
+    })
+
+
+@router.get("/builds/{repo_hash}", response_class=HTMLResponse)
+async def build_detail(request: Request, repo_hash: str):
+    """
+    Build detail page showing build logs and results.
+    
+    Args:
+        request (Request): FastAPI request object
+        repo_hash (str): Repository hash
+        
+    Returns:
+        TemplateResponse: Rendered build detail page
+    """
+    # Find the build record by hash
+    build_records = build_history_manager.get_all_build_records()
+    build_record = None
+    
+    for record in build_records:
+        record_hash = build_history_manager._get_repo_hash(record["repo_url"])
+        if record_hash == repo_hash:
+            build_record = record
+            break
+    
+    if not build_record:
+        raise HTTPException(status_code=404, detail="Build record not found")
+    
+    # Load build logs if they exist
+    log_content = ""
+    log_file_path = f"build_history/logs/{repo_hash}.log"
+    if os.path.exists(log_file_path):
+        try:
+            with open(log_file_path, "r", encoding="utf-8") as f:
+                log_content = f.read()
+        except Exception as e:
+            log_content = f"Error reading log file: {str(e)}"
+    
+    available_models = settings.get_available_models()
+    current_model = (
+        available_models[0]["name"] if available_models 
+        else settings.model
+    )
+    
+    return templates.TemplateResponse("build_detail.jinja", {
+        "request": request,
+        "build_record": build_record,
+        "log_content": log_content,
         "available_models": [model["name"] for model in available_models],
         "current_model": current_model
     })
@@ -79,7 +135,7 @@ async def dynamic_github_route(request: Request, path: str):
     # Skip certain paths that shouldn't be treated as GitHub routes
     skip_paths = {
         "health", "favicon.ico", "favicon-16x16.png", 
-        "favicon-32x32.png", "apple-touch-icon.png", "static", "ws"
+        "favicon-32x32.png", "apple-touch-icon.png", "static", "ws", "builds"
     }
     
     # Split path into segments
@@ -112,6 +168,13 @@ async def dynamic_github_route(request: Request, path: str):
     # Use only the first two segments (username/repo)
     username, repo = segments[0], segments[1]
     github_url = f"https://github.com/{username}/{repo}"
+    
+    # Check if this repo has already been built successfully
+    if build_history_manager.repo_already_built_successfully(github_url):
+        # Redirect to build detail page
+        repo_hash = build_history_manager._get_repo_hash(github_url)
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"/builds/{repo_hash}")
     
     # Get available models from environment variable
     available_models = settings.get_available_models()
@@ -152,6 +215,13 @@ async def generate_dockerfile_endpoint(
     Returns:
         TemplateResponse: Rendered page with streaming enabled
     """
+    # Check if this repo has already been built successfully
+    if build_history_manager.repo_already_built_successfully(repo_url):
+        # Redirect to build detail page
+        repo_hash = build_history_manager._get_repo_hash(repo_url)
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"/builds/{repo_hash}", status_code=303)
+    
     # Store the repo URL, additional instructions, and model in a session
     session_id = session_manager.create_session({
         "repo_url": repo_url,
@@ -207,6 +277,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         additional_instructions = session_data.get("additional_instructions", "")
         model = session_data.get("model", None)
         
+        # Create log file path
+        repo_hash = build_history_manager._get_repo_hash(repo_url)
+        log_file_path = f"build_history/logs/{repo_hash}.log"
+        
+        # Initialize WebSocket manager with log file
+        from autobuild.utils import get_websocket_manager
+        ws_manager = get_websocket_manager(websocket, log_file_path)
+        
         # Compile workflow
         workflow = create_workflow()
         app_workflow = workflow.compile()
@@ -254,6 +332,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             "result": final_result
         }))
         
+        # Save build record
+        build_data = {
+            "success": True,
+            "result": final_result,
+            "repo_url": repo_url
+        }
+        build_history_manager.save_build_record(repo_url, build_data)
+        
         # Store result in session for potential refresh
         session_manager.update_session(session_id, {
             "result": final_result,
@@ -274,6 +360,20 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 }))
         except Exception as send_error:
             logger.error(f"Could not send error message, WebSocket likely closed: {send_error}")
+        
+        # Save failed build record if repo_url is available
+        try:
+            session_data = session_manager.get_session(session_id)
+            if session_data and "repo_url" in session_data:
+                repo_url = session_data["repo_url"]
+                build_data = {
+                    "success": False,
+                    "error": error_msg,
+                    "repo_url": repo_url
+                }
+                build_history_manager.save_build_record(repo_url, build_data)
+        except Exception as save_error:
+            logger.error(f"Could not save failed build record: {save_error}")
     finally:
         # Clean up session data
         try:

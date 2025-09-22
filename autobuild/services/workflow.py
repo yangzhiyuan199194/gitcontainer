@@ -22,6 +22,7 @@ from autobuild.tools import (
     build_docker_image
 )
 from autobuild.utils import get_websocket_manager
+from autobuild.utils.build_history import build_history_manager
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -156,14 +157,11 @@ async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
             "error": "Repository analysis failed, cannot generate Dockerfile"
         }
         if websocket:
-            try:
-                await websocket.send_text(json.dumps({
-                    "type": "phase_end",
-                    "content": "[生成阶段结束]",
-                    "phase_type": "normal"
-                }))
-            except WebSocketDisconnect:
-                logger.warning("WebSocket disconnected during phase end message")
+            await websocket.send_text(json.dumps({
+                "type": "phase_end",
+                "content": "[生成阶段结束]",
+                "phase_type": "normal"
+            }))
         return state
     
     # Determine if the selected model supports streaming
@@ -182,14 +180,11 @@ async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
     )
     
     if websocket:
-        try:
-            await websocket.send_text(json.dumps({
-                "type": "phase_end",
-                "content": "[生成阶段结束]",
-                "phase_type": "normal"
-            }))
-        except WebSocketDisconnect:
-            logger.warning("WebSocket disconnected during phase end message")
+        await websocket.send_text(json.dumps({
+            "type": "phase_end",
+            "content": "[生成阶段结束]",
+            "phase_type": "normal"
+        }))
     
     state["dockerfile_result"] = dockerfile_result
     return state
