@@ -55,6 +55,11 @@ async def home(request: Request):
         else settings.model
     )
     
+    # Check if there's a model parameter in the request
+    request_model = request.query_params.get("model")
+    if request_model and request_model in [model["name"] for model in available_models]:
+        current_model = request_model
+    
     # Get successful build records
     successful_builds = build_history_manager.get_successful_builds()
     
@@ -269,10 +274,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     try:
         session_data = session_manager.get_session(session_id)
         if not session_data:
-            await websocket.send_text(json.dumps({
-                "type": "error",
-                "content": "Invalid session ID"
-            }))
+            from autobuild.utils import get_websocket_manager
+            ws_manager = get_websocket_manager(websocket)
+            await ws_manager.send_error("Invalid session ID")
             return
         
         repo_url = session_data["repo_url"]
@@ -280,6 +284,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         model = session_data.get("model", None)
         
         # Create log file path
+        import hashlib
         repo_hash = hashlib.sha256(repo_url.encode()).hexdigest()
         log_file_path = f"build_history/logs/{repo_hash}.log"
         
@@ -328,11 +333,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         }
         
         # Send final result - regardless of build success
-        await websocket.send_text(json.dumps({
-            "type": "complete",
-            "content": "Generation complete!",
-            "result": final_result
-        }))
+        await ws_manager.send_complete("Generation complete!", final_result)
         
         # Save build record
         build_data = {

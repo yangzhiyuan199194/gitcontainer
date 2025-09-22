@@ -314,7 +314,7 @@
                        class="build-item block border border-gray-200 rounded-lg p-4 hover:border-blue-300">
                         <div class="flex justify-between items-start">
                             <div>
-                                <h3 class="font-medium text-gray-900 truncate">{{ build.result.project_name or build.repo_info.name or 'Unknown Project' }}</h3>
+                                <h3 class="font-medium text-gray-900 truncate">{{ build.result.project_name or build.result.repo_info.name if build.result.repo_info else 'Unknown Project' }}</h3>
                                 <p class="text-sm text-gray-500 truncate mt-1">{{ build.repo_url }}</p>
                             </div>
                             <span class="inline-flex items-center text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
@@ -622,11 +622,57 @@
             }
         }
 
+        // Set the model selector to the user's previously selected model
+        function setModelFromCache() {
+            // First check if there's a model parameter in the URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlModel = urlParams.get('model');
+            
+            if (urlModel) {
+                const modelSelector = document.getElementById('model-select');
+                if (modelSelector) {
+                    // Check if the URL model is in the available options
+                    const options = Array.from(modelSelector.options);
+                    const modelExists = options.some(option => option.value === urlModel);
+                    
+                    if (modelExists) {
+                        modelSelector.value = urlModel;
+                        // Also update the hidden field
+                        document.getElementById('model_hidden').value = urlModel;
+                        // Save to localStorage as well
+                        localStorage.setItem('selectedModel', urlModel);
+                        return;
+                    }
+                }
+            }
+            
+            // If no URL model, check localStorage
+            const savedModel = localStorage.getItem('selectedModel');
+            if (savedModel) {
+                const modelSelector = document.getElementById('model-select');
+                if (modelSelector) {
+                    // Check if the saved model is in the available options
+                    const options = Array.from(modelSelector.options);
+                    const modelExists = options.some(option => option.value === savedModel);
+                    
+                    if (modelExists) {
+                        modelSelector.value = savedModel;
+                        // Also update the hidden field
+                        document.getElementById('model_hidden').value = savedModel;
+                    }
+                }
+            }
+        }
+
         // Update model hidden field when model is changed
         function updateModel(model) {
             document.getElementById('model_hidden').value = model;
             // Save user's model preference to localStorage
             localStorage.setItem('selectedModel', model);
+            // Update URL parameter
+            const url = new URL(window.location);
+            url.searchParams.set('model', model);
+            window.history.replaceState({}, '', url);
         }
 
         // Prepare form submission by copying additional instructions to hidden input
@@ -643,25 +689,6 @@
             
             // Allow form to submit normally
             return true;
-        }
-
-        // Set the model selector to the user's previously selected model
-        function setModelFromCache() {
-            const savedModel = localStorage.getItem('selectedModel');
-            if (savedModel) {
-                const modelSelector = document.getElementById('model-select');
-                if (modelSelector) {
-                    // Check if the saved model is in the available options
-                    const options = Array.from(modelSelector.options);
-                    const modelExists = options.some(option => option.value === savedModel);
-                    
-                    if (modelExists) {
-                        modelSelector.value = savedModel;
-                        // Also update the hidden field
-                        document.getElementById('model_hidden').value = savedModel;
-                    }
-                }
-            }
         }
 
         // Monaco Editor setup
