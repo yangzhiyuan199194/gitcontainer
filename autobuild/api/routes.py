@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import os
+import hashlib
 from typing import Dict, Any
 
 from fastapi import APIRouter, Request, Form, WebSocket, WebSocketDisconnect, HTTPException
@@ -87,7 +88,8 @@ async def build_detail(request: Request, repo_hash: str):
     build_record = None
     
     for record in build_records:
-        record_hash = build_history_manager._get_repo_hash(record["repo_url"])
+        # 使用与build_history_manager中相同的哈希方法
+        record_hash = hashlib.md5(record["repo_url"].encode()).hexdigest()
         if record_hash == repo_hash:
             build_record = record
             break
@@ -172,7 +174,7 @@ async def dynamic_github_route(request: Request, path: str):
     # Check if this repo has already been built successfully
     if build_history_manager.repo_already_built_successfully(github_url):
         # Redirect to build detail page
-        repo_hash = build_history_manager._get_repo_hash(github_url)
+        repo_hash = hashlib.md5(github_url.encode()).hexdigest()
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=f"/builds/{repo_hash}")
     
@@ -218,7 +220,7 @@ async def generate_dockerfile_endpoint(
     # Check if this repo has already been built successfully
     if build_history_manager.repo_already_built_successfully(repo_url):
         # Redirect to build detail page
-        repo_hash = build_history_manager._get_repo_hash(repo_url)
+        repo_hash = hashlib.md5(repo_url.encode()).hexdigest()
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=f"/builds/{repo_hash}", status_code=303)
     
@@ -278,7 +280,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         model = session_data.get("model", None)
         
         # Create log file path
-        repo_hash = build_history_manager._get_repo_hash(repo_url)
+        repo_hash = hashlib.md5(repo_url.encode()).hexdigest()
         log_file_path = f"build_history/logs/{repo_hash}.log"
         
         # Initialize WebSocket manager with log file

@@ -28,9 +28,9 @@ class BuildHistoryManager:
             repo_url (str): Repository URL
             
         Returns:
-            str: Hash of the repository URL
+            str: Hash of the repository URL using SHA-256
         """
-        return hashlib.md5(repo_url.encode()).hexdigest()
+        return hashlib.sha256(repo_url.encode()).hexdigest()
     
     def _get_build_path(self, repo_url: str) -> Path:
         """
