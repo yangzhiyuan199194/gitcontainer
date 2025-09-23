@@ -839,6 +839,9 @@
                                 // 添加带步骤说明的分隔符
                                 showStepContent('content', '\n[克隆仓库阶段开始]\n' + '='.repeat(50) + '\n');
                             }
+                        } else if (data.content.includes('Successfully cloned') || data.content.includes('✅ Successfully cloned')) {
+                            console.log('Updating clone step to completed');
+                            updateStepStatus('clone', 'completed');
                         } else if (data.content.includes('分析仓库结构') || data.content.includes('Analyzing repository structure')) {
                             console.log('Updating clone step to completed and analyze step to active');
                             updateStepStatus('clone', 'completed');
