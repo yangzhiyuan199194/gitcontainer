@@ -109,6 +109,32 @@
             padding: 1rem;
             border-radius: 0.375rem;
         }
+        
+        #log-content.parsed-log {
+            white-space: pre-line;
+        }
+        
+        .log-entry {
+            margin-bottom: 0.25rem;
+        }
+        
+        .timestamp {
+            color: #888888;
+        }
+        
+        .type {
+            font-weight: bold;
+            margin: 0 0.5rem;
+        }
+        
+        .type.status { color: #FFFF00; }
+        .type.chunk { color: #00FF00; }
+        .type.error { color: #FF0000; }
+        .type.build_log { color: #00FFFF; }
+        .type.phase { color: #FFA500; }
+        .type.stream { color: #00FFFF; }
+        .type.complete { color: #00FF00; }
+        .type.default { color: #FFFFFF; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col">
@@ -282,6 +308,83 @@
             }).catch(err => {
                 console.error('Failed to copy: ', err);
             });
+        }
+        
+        // Parse and render log content
+        document.addEventListener('DOMContentLoaded', function() {
+            const logContentElement = document.getElementById('log-content');
+            if (logContentElement) {
+                const rawContent = logContentElement.textContent || logContentElement.innerText;
+                if (rawContent && (rawContent.trim().startsWith('{') || rawContent.trim().includes('{"type":'))) {
+                    try {
+                        // Split content into lines and parse each JSON line
+                        const lines = rawContent.trim().split('\n');
+                        let formattedContent = '';
+                        
+                        lines.forEach(line => {
+                            if (line.trim()) {
+                                try {
+                                    const logEntry = JSON.parse(line);
+                                    formattedContent += formatLogEntry(logEntry) + '\n';
+                                } catch (e) {
+                                    // If JSON parsing fails, display the line as is
+                                    formattedContent += line + '\n';
+                                }
+                            }
+                        });
+                        
+                        logContentElement.innerHTML = formattedContent;
+                        logContentElement.className += ' parsed-log';
+                    } catch (e) {
+                        // If parsing fails, leave the content as is
+                        console.error('Failed to parse log content:', e);
+                    }
+                }
+            }
+        });
+        
+        function formatLogEntry(entry) {
+            const timestamp = entry.timestamp ? new Date(entry.timestamp * 1000).toLocaleTimeString() : '';
+            const type = entry.type || 'unknown';
+            const content = entry.content || '';
+            
+            // Special handling for different types
+            let formattedContent = content;
+            if (type === 'chunk' || type === 'build_log') {
+                // For chunk and build_log, remove extra newlines at the end
+                formattedContent = content.replace(/\n+$/, '');
+            }
+            
+            // Apply different styling based on type
+            let typeClass = '';
+            switch(type) {
+                case 'status':
+                    typeClass = 'status';
+                    break;
+                case 'chunk':
+                    typeClass = 'chunk';
+                    break;
+                case 'error':
+                    typeClass = 'error';
+                    break;
+                case 'build_log':
+                    typeClass = 'build_log';
+                    break;
+                case 'phase_start':
+                case 'phase_end':
+                    typeClass = 'phase';
+                    break;
+                case 'stream_start':
+                    typeClass = 'stream';
+                    break;
+                case 'complete':
+                    typeClass = 'complete';
+                    break;
+                default:
+                    typeClass = 'default';
+            }
+            
+            return `[${timestamp}] <span class="type ${typeClass}">${type.toUpperCase()}</span>: ${formattedContent}`;
         }
     </script>
 </body>
