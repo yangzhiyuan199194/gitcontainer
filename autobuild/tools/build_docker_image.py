@@ -15,7 +15,7 @@ async def build_docker_image(
         dockerfile_content: str,
         project_name: str,
         local_path: str,
-        websocket: Optional[Any] = None
+        ws_manager: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     Build a Docker image from the provided Dockerfile content.
@@ -29,9 +29,7 @@ async def build_docker_image(
     Returns:
         Dict[str, Any]: Dictionary containing the build result and image information
     """
-    # Initialize WebSocket manager
-    ws_manager = get_websocket_manager(websocket)
-    
+
     try:
         import tempfile
         import shutil
@@ -67,11 +65,12 @@ async def build_docker_image(
             build_args = ["docker", "build","--no-cache", "-t", image_tag, "."]
 
             # Send status message about the build
-            await ws_manager.send_status(f"🔨 正在构建 Docker 镜像...")
-            await ws_manager.send_build_log(f"🚀 开始构建 Docker 镜像: {image_tag}\n")
-            await ws_manager.send_build_log(f"📂 构建目录: {temp_dir}\n")
-            await ws_manager.send_build_log(f"🏗️ 构建命令: {' '.join(build_args)}\n")
-            await ws_manager.send_build_log("=" * 50 + "\n")
+            if ws_manager:
+                await ws_manager.send_status(f"🔨 正在构建 Docker 镜像...")
+                await ws_manager.send_build_log(f"🚀 开始构建 Docker 镜像: {image_tag}\n")
+                await ws_manager.send_build_log(f"📂 构建目录: {temp_dir}\n")
+                await ws_manager.send_build_log(f"🏗️ 构建命令: {' '.join(build_args)}\n")
+                await ws_manager.send_build_log("=" * 50 + "\n")
 
             build_process = await asyncio.create_subprocess_exec(
                 *build_args,
@@ -130,8 +129,9 @@ async def build_docker_image(
             print(f"Debug - Docker build process return code: {build_process.returncode}")
 
             if build_process.returncode == 0:
-                await ws_manager.send_build_log("=" * 50 + "\n")
-                await ws_manager.send_build_log(f"✅ 镜像构建成功: {image_tag}\n")
+                if ws_manager:
+                    await ws_manager.send_build_log("=" * 50 + "\n")
+                    await ws_manager.send_build_log(f"✅ 镜像构建成功: {image_tag}\n")
                 return {
                     "success": True,
                     "image_tag": image_tag,
@@ -145,9 +145,9 @@ async def build_docker_image(
                     error_output = "[关键错误信息]:\n" + "".join(
                         error_lines[-100:]) + "\n\n[完整日志摘要(最后100行)]:\n" + "\n".join(
                         build_log.split('\n')[-100:]) if build_log else error_output
-
-                await ws_manager.send_build_log("=" * 50 + "\n")
-                await ws_manager.send_build_log(f"❌ 镜像构建失败\n")
+                if ws_manager:
+                    await ws_manager.send_build_log("=" * 50 + "\n")
+                    await ws_manager.send_build_log(f"❌ 镜像构建失败\n")
                 return {
                     "success": False,
                     "error": error_output,

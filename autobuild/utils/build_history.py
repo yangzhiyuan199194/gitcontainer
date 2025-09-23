@@ -99,6 +99,32 @@ class BuildHistoryManager:
             print(f"Error reading build record: {e}")
             return None
     
+    def get_build_log(self, repo_url: str) -> Optional[str]:
+        """
+        Get build log content.
+        
+        Args:
+            repo_url (str): Repository URL
+            
+        Returns:
+            Optional[str]: Build log content or None if not found
+        """
+        try:
+            # Get repo hash
+            repo_hash = self._get_repo_hash(repo_url)
+            
+            # Log file path
+            log_file_path = self.history_dir / "logs" / f"{repo_hash}.log"
+            
+            if not log_file_path.exists():
+                return None
+            
+            with open(log_file_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            print(f"Error reading build log: {e}")
+            return None
+    
     def get_all_build_records(self) -> List[Dict[str, Any]]:
         """
         Get all build records.

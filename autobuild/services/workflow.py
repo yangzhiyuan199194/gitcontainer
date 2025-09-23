@@ -45,6 +45,7 @@ class WorkflowState(TypedDict):
     iteration: int
     max_iterations: int
     final_result: Dict[str, Any]
+    ws_log_file_path: Optional[str]
     websocket: Optional[Any]
     messages: List[Any]
 
@@ -53,31 +54,21 @@ class WorkflowState(TypedDict):
 async def clone_repository(state: WorkflowState) -> WorkflowState:
     """克隆仓库工具"""
     websocket = state.get("websocket")
+    ws_log_file_path = state.get("ws_log_file_path",None)
+    ws_manager = get_websocket_manager(websocket,ws_log_file_path)
     if websocket:
-        await websocket.send_text(json.dumps({
-            "type": "status",
-            "content": "🔄 Cloning repository..."
-        }))
-        await websocket.send_text(json.dumps({
-            "type": "phase_start",
-            "content": "[克隆阶段开始]",
-            "phase_type": "normal"
-        }))
-    
+        await ws_manager.send_status("🔄 Cloning repository...")
+        await ws_manager.send_phase_start("[克隆阶段开始]", "normal")
     logger.info("克隆Agent开始工作")
     
     clone_result = await clone_repo_tool(
         github_url=state["repo_url"],
-        websocket=websocket
+        ws_manager=ws_manager
     )
     
     if websocket:
-        await websocket.send_text(json.dumps({
-            "type": "phase_end",
-            "content": "[克隆阶段结束]",
-            "phase_type": "normal"
-        }))
-    
+        await ws_manager.send_phase_end("[克隆阶段结束]", "normal")
+
     state["clone_result"] = clone_result
     return state
 
@@ -85,7 +76,8 @@ async def clone_repository(state: WorkflowState) -> WorkflowState:
 async def analyze_repo(state: WorkflowState) -> WorkflowState:
     """分析仓库工具"""
     websocket = state.get("websocket")
-    ws_manager = get_websocket_manager(websocket)
+    ws_log_file_path = state.get("ws_log_file_path", None)
+    ws_manager = get_websocket_manager(websocket, ws_log_file_path)
     
     if websocket:
         await ws_manager.send_status("🔍 Analyzing repository...")
@@ -94,7 +86,7 @@ async def analyze_repo(state: WorkflowState) -> WorkflowState:
     logger.info("分析Agent开始工作")
     
     # 克隆仓库
-    clone_result = await clone_repo_tool(state["repo_url"], websocket=websocket)
+    clone_result = await clone_repo_tool(state["repo_url"], ws_manager=ws_manager)
     state["clone_result"] = clone_result
     
     if not clone_result["success"]:
@@ -103,7 +95,7 @@ async def analyze_repo(state: WorkflowState) -> WorkflowState:
         return state
     
     # 分析仓库
-    analysis_result = await gitingest_tool(clone_result["local_path"], websocket=websocket)
+    analysis_result = await gitingest_tool(clone_result["local_path"], ws_manager=ws_manager)
     state["analysis_result"] = analysis_result
     
     if websocket:
@@ -115,7 +107,8 @@ async def analyze_repo(state: WorkflowState) -> WorkflowState:
 async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
     """生成Dockerfile工具"""
     websocket = state.get("websocket")
-    ws_manager = get_websocket_manager(websocket)
+    ws_log_file_path = state.get("ws_log_file_path", None)
+    ws_manager = get_websocket_manager(websocket, ws_log_file_path)
     
     if websocket:
         await ws_manager.send_status("🐳 Generating Dockerfile...")
@@ -145,7 +138,7 @@ async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
         project_name=state["clone_result"]["repo_name"],
         additional_instructions=additional_instructions,
         model=state["model"],
-        websocket=websocket,
+        ws_manager=ws_manager,
         stream=stream_support
     )
     
@@ -159,7 +152,8 @@ async def generate_dockerfile(state: WorkflowState) -> WorkflowState:
 async def build_image(state: WorkflowState) -> WorkflowState:
     """构建Docker镜像工具"""
     websocket = state.get("websocket")
-    ws_manager = get_websocket_manager(websocket)
+    ws_log_file_path = state.get("ws_log_file_path", None)
+    ws_manager = get_websocket_manager(websocket, ws_log_file_path)
     
     if websocket:
         try:
@@ -205,7 +199,7 @@ async def build_image(state: WorkflowState) -> WorkflowState:
         dockerfile_content=state["dockerfile_result"]["dockerfile"],
         project_name=state["clone_result"]["repo_name"],
         local_path=state["clone_result"]["local_path"],
-        websocket=websocket
+        ws_manager=ws_manager
     )
     
     # Send build result information
@@ -228,7 +222,8 @@ async def build_image(state: WorkflowState) -> WorkflowState:
 async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
     """反思构建失败原因工具"""
     websocket = state.get("websocket")
-    ws_manager = get_websocket_manager(websocket)
+    ws_log_file_path = state.get("ws_log_file_path", None)
+    ws_manager = get_websocket_manager(websocket, ws_log_file_path)
     
     if websocket:
         await ws_manager.send_status("🤔 Reflecting on build failure...")
@@ -300,7 +295,7 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
             temperature=0.3,
             max_tokens=3000,
             stream=stream_support,
-            websocket=websocket
+            ws_manager=ws_manager
         )
         
         if llm_result["success"]:
@@ -366,7 +361,8 @@ async def reflect_on_failure(state: WorkflowState) -> WorkflowState:
 async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
     """改进Dockerfile工具"""
     websocket = state.get("websocket")
-    ws_manager = get_websocket_manager(websocket)
+    ws_log_file_path = state.get("ws_log_file_path", None)
+    ws_manager = get_websocket_manager(websocket, ws_log_file_path)
     
     if websocket:
         # 发送状态更新和阶段开始消息
@@ -420,7 +416,7 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
         project_name=state["clone_result"]["repo_name"],
         additional_instructions=additional_instructions,
         model=state["model"],
-        websocket=websocket,
+        ws_manager=ws_manager,
         stream=stream_support
     )
     
@@ -449,18 +445,18 @@ async def improve_dockerfile(state: WorkflowState) -> WorkflowState:
 async def should_continue(state: WorkflowState) -> str:
     """决定是否继续构建或结束"""
     websocket = state.get("websocket")
+    ws_log_file_path = state.get("ws_log_file_path", None)
+    ws_manager = get_websocket_manager(websocket, ws_log_file_path)
     
     # 如果构建成功，结束
     if state["build_result"].get("success"):
         if websocket:
-            ws_manager = get_websocket_manager(websocket)
             await ws_manager.send_status("✅ 构建成功，工作流结束")
         return "success"
     
     # 如果达到最大迭代次数，结束
     if state["iteration"] >= state["max_iterations"]:
         if websocket:
-            ws_manager = get_websocket_manager(websocket)
             await ws_manager.send_status(f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束")
             await ws_manager.send_build_log(f"⏹️ 已达到最大迭代次数 ({state['max_iterations']})，工作流结束\n")
             # 添加明确的错误消息类型，确保前端能正确处理
@@ -470,12 +466,10 @@ async def should_continue(state: WorkflowState) -> str:
     # 如果需要反思，进入反思流程
     if not state["build_result"].get("success"):
         if websocket:
-            ws_manager = get_websocket_manager(websocket)
             await ws_manager.send_status("🔄 构建失败，进入反思阶段")
         return "reflect"
     
     if websocket:
-        ws_manager = get_websocket_manager(websocket)
         await ws_manager.send_status("🔚 工作流结束")
     return "end"
 
@@ -483,18 +477,18 @@ async def should_continue(state: WorkflowState) -> str:
 async def should_retry(state: WorkflowState) -> str:
     """决定是否重试构建"""
     websocket = state.get("websocket")
+    ws_log_file_path = state.get("ws_log_file_path", None)
+    ws_manager = get_websocket_manager(websocket, ws_log_file_path)
     
     # 如果改进后可以重试
     if state["dockerfile_result"]["success"] and state["iteration"] < state["max_iterations"]:
         if websocket:
-            ws_manager = get_websocket_manager(websocket)
             await ws_manager.send_status("🔄 Dockerfile已改进，重新尝试构建")
             await ws_manager.send_build_log(f"🔄 Dockerfile已改进，重新尝试构建 (第 {state['iteration'] + 1} 次尝试)\n")
         return "retry"
     
     # 否则结束
     if websocket:
-        ws_manager = get_websocket_manager(websocket)
         if not state["dockerfile_result"]["success"]:
             await ws_manager.send_status("❌ Dockerfile改进失败，工作流结束")
             await ws_manager.send_build_log("❌ Dockerfile改进失败，工作流结束\n")

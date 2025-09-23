@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 async def search_dockerfile(local_repo_path: str, summary: str, tree: str, content: str,
-                            websocket: Optional[Any] = None) -> Optional[str]:
+                            ws_manager: Optional[Any] = None) -> Optional[str]:
     """
     Search for existing Dockerfile in the repository.
     
@@ -44,15 +44,14 @@ async def search_dockerfile(local_repo_path: str, summary: str, tree: str, conte
                     dockerfile_paths.append(os.path.join(root, file))
 
         # If no Dockerfile found, return None
-        # Initialize WebSocket manager
-        ws_manager = get_websocket_manager(websocket)
-        
+
         if not dockerfile_paths:
             return None
         else:
             # Convert dockerfile_paths to a newline-separated string
             paths = "\n".join(dockerfile_paths)
-            await ws_manager.send_chunk(f"The paths of the current project Dockerfiles:{paths}\n")
+            if ws_manager:
+                await ws_manager.send_chunk(f"The paths of the current project Dockerfiles:{paths}\n")
 
         # If there's only one Dockerfile, return its content directly
         if len(dockerfile_paths) == 1:
@@ -72,7 +71,7 @@ async def search_dockerfile(local_repo_path: str, summary: str, tree: str, conte
 
         # Use LLM to analyze and select the most appropriate Dockerfile
         selected_dockerfile = await _select_best_dockerfile(
-            dockerfile_contents, summary, tree, content, websocket
+            dockerfile_contents, summary, tree, content, ws_manager
         )
         return selected_dockerfile
 
@@ -82,7 +81,7 @@ async def search_dockerfile(local_repo_path: str, summary: str, tree: str, conte
 
 
 async def _select_best_dockerfile(dockerfile_contents: Dict[str, str], summary: str, tree: str, content: str,
-                                 websocket: Optional[Any] = None) -> Optional[str]:
+                                 ws_manager: Optional[Any] = None) -> Optional[str]:
     """
     Use LLM to analyze and select the most appropriate Dockerfile.
     
@@ -91,14 +90,12 @@ async def _select_best_dockerfile(dockerfile_contents: Dict[str, str], summary: 
         summary: Project summary from gitingest
         tree: Directory tree from gitingest
         content: Source code content from gitingest
-        websocket: WebSocket connection for streaming output
+        ws_manager: WebSocket connection for streaming output
         
     Returns:
         Content of the selected Dockerfile or None if selection failed
     """
-    # Initialize WebSocket manager
-    ws_manager = get_websocket_manager(websocket)
-    
+
     try:
         # Initialize LLM client
         llm_client = LLMClient()
@@ -131,36 +128,41 @@ async def _select_best_dockerfile(dockerfile_contents: Dict[str, str], summary: 
         ]
 
         # Send status message
-        await ws_manager.send_chunk("🧠 Analyzing multiple Dockerfiles to select the most appropriate one...\n")
+        if ws_manager:
+            await ws_manager.send_chunk("🧠 Analyzing multiple Dockerfiles to select the most appropriate one...\n")
 
         # Call LLM for analysis
         result = await llm_client.call_llm(
             messages=messages,
             temperature=0.3,
-            websocket=websocket
+            ws_manager=ws_manager
         )
         
         if result["success"]:
             selected_path = result["content"].strip()
             # Check if returned path is in our list
             if selected_path in dockerfile_contents:
-                await ws_manager.send_chunk(f"✅ Selected Dockerfile: {selected_path}\n")
+                if ws_manager:
+                    await ws_manager.send_chunk(f"✅ Selected Dockerfile: {selected_path}\n")
                 return dockerfile_contents[selected_path]
             else:
                 # If returned path is not in list, try fuzzy matching
                 for path in dockerfile_contents.keys():
                     if path in selected_path or selected_path in path:
-                        await ws_manager.send_chunk(f"✅ Selected Dockerfile: {path}\n")
+                        if ws_manager:
+                            await ws_manager.send_chunk(f"✅ Selected Dockerfile: {path}\n")
                         return dockerfile_contents[path]
                 
                 # If unable to match, use first Dockerfile
                 first_path = list(dockerfile_contents.keys())[0]
-                await ws_manager.send_chunk(f"⚠️ Could not match selected path, using: {first_path}\n")
+                if ws_manager:
+                    await ws_manager.send_chunk(f"⚠️ Could not match selected path, using: {first_path}\n")
                 return dockerfile_contents[first_path]
         else:
             # If LLM call fails, use first Dockerfile
             first_path = list(dockerfile_contents.keys())[0]
-            await ws_manager.send_chunk(f"⚠️ Failed to analyze Dockerfiles, using: {first_path}\n")
+            if ws_manager:
+                await ws_manager.send_chunk(f"⚠️ Failed to analyze Dockerfiles, using: {first_path}\n")
             return dockerfile_contents[first_path]
 
     except Exception as e:
@@ -168,25 +170,24 @@ async def _select_best_dockerfile(dockerfile_contents: Dict[str, str], summary: 
         # On error, return first Dockerfile
         if dockerfile_contents:
             first_path = list(dockerfile_contents.keys())[0]
-            await ws_manager.send_chunk(f"⚠️ Error during analysis, using: {first_path}\n")
+            if ws_manager:
+                await ws_manager.send_chunk(f"⚠️ Error during analysis, using: {first_path}\n")
             return dockerfile_contents[first_path]
         return None
 
 
-async def gitingest_tool(local_repo_path: str, websocket: Optional[Any] = None) -> Dict[str, Any]:
+async def gitingest_tool(local_repo_path: str, ws_manager: Optional[Any] = None) -> Dict[str, Any]:
     """
     Analyze a local GitHub repository using gitingest and return structured results.
     
     Args:
         local_repo_path (str): The local path to the cloned repository to analyze
-        websocket (Optional[Any]): WebSocket connection for streaming output
+        ws_manager (Optional[Any]): WebSocket connection for streaming output
         
     Returns:
         Dict[str, Any]: Dictionary containing summary, tree, content, and git_dockerfile
     """
-    # Initialize WebSocket manager
-    ws_manager = get_websocket_manager(websocket)
-    
+
     try:
         # Check if the local path exists
         if not os.path.exists(local_repo_path):
@@ -194,11 +195,12 @@ async def gitingest_tool(local_repo_path: str, websocket: Optional[Any] = None) 
 
         if not os.path.isdir(local_repo_path):
             raise ValueError(f"Path is not a directory: {local_repo_path}")
-
-        await ws_manager.send_chunk("🔍 Starting repository analysis...\n")
+        if ws_manager:
+            await ws_manager.send_chunk("🔍 Starting repository analysis...\n")
 
         # Use gitingest to analyze the local repository with timeout
-        await ws_manager.send_chunk("📂 Scanning directory structure...\n")
+        if ws_manager:
+            await ws_manager.send_chunk("📂 Scanning directory structure...\n")
 
         try:
             # Add timeout to prevent hanging
@@ -218,7 +220,8 @@ async def gitingest_tool(local_repo_path: str, websocket: Optional[Any] = None) 
                 "Repository analysis timed out (took more than 2 minutes). "
                 "The repository might be too large."
             )
-            await ws_manager.send_chunk(f"❌ {error_msg}\n")
+            if ws_manager:
+                await ws_manager.send_chunk(f"❌ {error_msg}\n")
             return {
                 "success": False,
                 "error": error_msg,
@@ -226,13 +229,14 @@ async def gitingest_tool(local_repo_path: str, websocket: Optional[Any] = None) 
             }
 
         # Check the type of content and handle accordingly
-        await ws_manager.send_chunk(f"📊 Analysis complete. summary: {summary}\n")
-        await ws_manager.send_chunk(f"📊 Analysis complete. tree: {tree}\n")
-        await ws_manager.send_chunk("🧠 Analyzing technology stack...\n")
+        if ws_manager:
+            await ws_manager.send_chunk(f"📊 Analysis complete. summary: {summary}\n")
+            await ws_manager.send_chunk(f"📊 Analysis complete. tree: {tree}\n")
+            await ws_manager.send_chunk("🧠 Analyzing technology stack...\n")
 
         # Search for existing Dockerfile
         git_dockerfile = await search_dockerfile(
-            local_repo_path, summary, tree, content, websocket
+            local_repo_path, summary, tree, content, ws_manager
         )
 
         logger.info("git_dockerfile: %s", git_dockerfile)
@@ -246,7 +250,8 @@ async def gitingest_tool(local_repo_path: str, websocket: Optional[Any] = None) 
         }
     except Exception as e:
         error_msg = f"Error during repository analysis: {str(e)}"
-        await ws_manager.send_chunk(f"❌ {error_msg}\n")
+        if ws_manager:
+            await ws_manager.send_chunk(f"❌ {error_msg}\n")
     return {
         "success": False,
         "error": error_msg,

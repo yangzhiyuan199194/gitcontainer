@@ -44,7 +44,7 @@ class LLMClient:
         temperature: float = 0.3,
         max_tokens: int = 16384,
         stream: bool = True,
-        websocket: Optional[Any] = None,
+        ws_manager: Optional[Any] = None,
         response_handler: Optional[Callable] = None
     ) -> Dict[str, Any]:
         """
@@ -62,15 +62,14 @@ class LLMClient:
         Returns:
             Dictionary containing response content and metadata
         """
-        # Initialize WebSocket manager
-        ws_manager = get_websocket_manager(websocket)
-        
+
         try:
             # Use provided model or fallback to default model
             model_to_use = model or self.default_model
             
             # Send status message
-            await ws_manager.send_status("🤖 正在调用AI模型...")
+            if ws_manager:
+                await ws_manager.send_status("🤖 正在调用AI模型...")
             
             print(f"Debug - About to make API call")
             print(f"Debug - Model: {model_to_use}")
@@ -95,7 +94,8 @@ class LLMClient:
             response_content = ""
             if stream:
                 # Handle streaming response
-                await ws_manager.send_stream_start("开始生成...")
+                if ws_manager:
+                    await ws_manager.send_stream_start("开始生成...")
                 print("📝 Response:")
                 print("-" * 50)
                 
@@ -106,11 +106,13 @@ class LLMClient:
                             print(content, end="", flush=True)
                             response_content += content
                             # Send chunk
-                            await ws_manager.send_chunk(content)
+                            if ws_manager:
+                                await ws_manager.send_chunk(content)
                 
                 print("\n" + "-" * 50)
                 print("✅ Generation complete!\n")
-                await ws_manager.send_status("✅ 生成完成!")
+                if ws_manager:
+                    await ws_manager.send_status("✅ 生成完成!")
             else:
                 # Handle non-streaming response
                 response_content = response.choices[0].message.content
@@ -121,9 +123,10 @@ class LLMClient:
                 print("✅ Generation complete!\n")
                 
                 # Send entire response
-                await ws_manager.send_stream_start("开始生成...")
-                await ws_manager.send_chunk(response_content)
-                await ws_manager.send_status("✅ 生成完成!")
+                if ws_manager:
+                    await ws_manager.send_stream_start("开始生成...")
+                    await ws_manager.send_chunk(response_content)
+                    await ws_manager.send_status("✅ 生成完成!")
             
             # If response handler is provided, use it to process response
             if response_handler:
@@ -137,10 +140,9 @@ class LLMClient:
         except Exception as e:
             error_msg = f"LLM调用失败: {str(e)}"
             print(f"Debug - API call failed with error: {str(e)}")
-            
-            # Send error message
-            await ws_manager.send_error(error_msg)
-            
+            if ws_manager:
+                # Send error message
+                await ws_manager.send_error(error_msg)
             return {
                 "success": False,
                 "error": error_msg

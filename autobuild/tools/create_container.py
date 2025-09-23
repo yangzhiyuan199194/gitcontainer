@@ -17,7 +17,6 @@ from dotenv import load_dotenv
 
 from autobuild.prompts.dockerfile import create_dockerfile_prompt
 from autobuild.services.llm_client import LLMClient
-from autobuild.utils import get_websocket_manager
 
 # Load environment variables
 load_dotenv()
@@ -112,7 +111,7 @@ async def create_container_tool(
         project_name: Optional[str] = None,
         additional_instructions: Optional[str] = None,
         max_context_chars: int = 50000,  # Limit to stay within context window
-        websocket: Optional[Any] = None,  # WebSocket connection for streaming
+        ws_manager: Optional[Any] = None,  # WebSocket connection for streaming
         model: Optional[str] = None,  # Model to use for generation
         stream: bool = True  # Whether to stream the response
 ) -> Dict[str, Any]:
@@ -133,9 +132,7 @@ async def create_container_tool(
     Returns:
         Dict[str, Any]: Dictionary containing the generated Dockerfile and metadata
     """
-    # Initialize WebSocket manager
-    ws_manager = get_websocket_manager(websocket)
-    
+
     try:
         # 初始化LLM客户端
         llm_client = LLMClient()
@@ -178,7 +175,7 @@ async def create_container_tool(
             temperature=0.3,
             max_tokens=20000,
             stream=stream,
-            websocket=websocket,
+            ws_manager=ws_manager,
             response_handler=_handle_dockerfile_response
         )
         
@@ -198,7 +195,8 @@ async def create_container_tool(
             "project_name": project_name or "unknown-project"
         }
         # Send error message
-        await ws_manager.send_error(str(e))
+        if ws_manager:
+            await ws_manager.send_error(str(e))
         return error_result
 
 
@@ -208,7 +206,7 @@ def run_create_container(
         gitingest_content: str,
         project_name: Optional[str] = None,
         additional_instructions: Optional[str] = None,
-        websocket: Optional[Any] = None,
+        ws_manager: Optional[Any] = None,
         model: Optional[str] = None
 ) -> Dict[str, Any]:
     """
@@ -220,7 +218,7 @@ def run_create_container(
         gitingest_content (str): Full content from gitingest
         project_name (str, optional): Name of the project
         additional_instructions (str, optional): Additional instructions for Dockerfile generation
-        websocket (Any, optional): WebSocket connection for streaming
+        ws_manager (Any, optional): WebSocket connection for streaming
         model (str, optional): Model to use for generation
         
     Returns:
@@ -228,7 +226,7 @@ def run_create_container(
     """
     return asyncio.run(create_container_tool(
         gitingest_summary, gitingest_tree, gitingest_content, project_name, additional_instructions,
-        websocket=websocket, model=model
+        ws_manager=ws_manager, model=model
     ))
 
 

@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 from autobuild.utils import get_websocket_manager
 
 
-async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket: Optional[Any] = None) -> Dict[str, Any]:
+async def clone_repo_tool(github_url: str, target_dir: str = "repos", ws_manager: Optional[Any] = None) -> Dict[str, Any]:
     """
     Clone a GitHub repository locally for future usage.
     
@@ -26,9 +26,7 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
     Returns:
         Dict[str, Any]: Dictionary containing clone results and local path
     """
-    # Initialize WebSocket manager
-    ws_manager = get_websocket_manager(websocket)
-    
+
     try:
         # Parse the GitHub URL to extract repo name
         parsed_url = urlparse(github_url)
@@ -60,7 +58,8 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
         
         # Remove existing directory if it exists with enhanced retry mechanism
         if os.path.exists(local_path):
-            await ws_manager.send_status(f"🗑️  Removing existing directory: {local_path}")
+            if ws_manager:
+                await ws_manager.send_status(f"🗑️  Removing existing directory: {local_path}")
             for attempt in range(5):  # Try up to 5 times
                 try:
                     # Change permissions to ensure we can delete
@@ -77,12 +76,14 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
                     # Wait and verify deletion
                     time.sleep(0.5)  # Increase wait time
                     if not os.path.exists(local_path):
-                        await ws_manager.send_status(f"✅ Successfully removed existing directory")
+                        if ws_manager:
+                            await ws_manager.send_status(f"✅ Successfully removed existing directory")
                         # Add extra wait to ensure file system operations are completed
                         time.sleep(0.5)
                         break
                     else:
-                        await ws_manager.send_status(f"⚠️  Directory still exists after deletion attempt {attempt + 1}")
+                        if ws_manager:
+                            await ws_manager.send_status(f"⚠️  Directory still exists after deletion attempt {attempt + 1}")
                         
                     # If still exists, try again
                     if attempt == 4:  # Last attempt
@@ -92,7 +93,8 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
                             "url": github_url
                         }
                 except PermissionError as e:
-                    await ws_manager.send_status(f"⚠️  Permission denied on attempt {attempt + 1}: {str(e)}")
+                    if ws_manager:
+                        await ws_manager.send_status(f"⚠️  Permission denied on attempt {attempt + 1}: {str(e)}")
                     if attempt == 4:  # Last attempt
                         return {
                             "success": False,
@@ -101,7 +103,8 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
                         }
                     time.sleep(0.5)  # Wait before retrying
                 except Exception as e:
-                    await ws_manager.send_status(f"⚠️  Error on attempt {attempt + 1}: {str(e)}")
+                    if ws_manager:
+                        await ws_manager.send_status(f"⚠️  Error on attempt {attempt + 1}: {str(e)}")
                     if attempt == 4:  # Last attempt
                         return {
                             "success": False,
@@ -115,8 +118,8 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", websocket:
         
         # Clone the repository using git command
         clone_command = f"git clone --recursive {github_url} {local_path}"
-        
-        await ws_manager.send_status(f"📥 Cloning repository to: {local_path}")
+        if ws_manager:
+            await ws_manager.send_status(f"📥 Cloning repository to: {local_path}")
         
         # Run the git clone command with real-time output
         process = await asyncio.create_subprocess_shell(
