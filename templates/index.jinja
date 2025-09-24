@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>启智自动化构建Demo</title>
+    <title>启智自动化构建 - GitHub/HuggingFace/ModelScope</title>
     
     <!-- Favicon links -->
     <link rel="icon" type="image/png" sizes="16x16" href="/static/icons8-docker-doodle-16.png">
@@ -196,6 +196,64 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
+        
+        /* Tab styles */
+        .tab-container {
+            border-bottom: 1px solid #E5E7EB;
+            margin-bottom: 2rem;
+        }
+        
+        .tab-button {
+            padding: 0.75rem 1.5rem;
+            background-color: #F3F4F6;
+            border: 1px solid #E5E7EB;
+            border-bottom: none;
+            cursor: pointer;
+            border-radius: 0.5rem 0.5rem 0 0;
+            font-weight: 500;
+            color: #4B5563;
+            transition: all 0.2s;
+        }
+        
+        .tab-button.active {
+            background-color: #FFFFFF;
+            color: #4A90E2;
+            border-bottom: 2px solid #FFFFFF;
+            margin-bottom: -1px;
+        }
+        
+        .tab-button:not(.active):hover {
+            background-color: #E5E7EB;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Add a class to hide content until we determine which tab to show */
+        .tab-content.initial {
+            display: none;
+        }
+        
+        .coming-soon {
+            text-align: center;
+            padding: 3rem;
+            color: #6B7280;
+        }
+        
+        .coming-soon h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .coming-soon p {
+            font-size: 0.875rem;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col">
@@ -222,156 +280,206 @@
 
     <!-- Main Content -->
     <main class="main-container mx-auto px-4 py-8 flex-grow">
-        <!-- Hero Section -->
-        <div class="mb-10 text-center">
-            <p class="text-gray-600 text-lg max-w-2xl mx-auto">
-                粘贴任何 GitHub 仓库 URL，获取由AI为您量身定制的智能服务
+        <!-- Tab Navigation -->
+        <div class="tab-container">
+            <div class="flex border-b border-gray-200">
+                <button class="tab-button active" onclick="switchTab('github')">GitHub</button>
+                <button class="tab-button" onclick="switchTab('huggingface')">HuggingFace</button>
+                <button class="tab-button" onclick="switchTab('modelscope')">ModelScope</button>
+            </div>
+        </div>
+        
+        <!-- GitHub Tab Content -->
+        <div id="github" class="tab-content initial active">
+            <!-- Hero Section -->
+            <div class="mb-10 text-center">
+                <p class="text-gray-600 text-lg max-w-2xl mx-auto">
+                    粘贴任何 GitHub 仓库 URL，获取由AI为您量身定制的智能服务
+                </p>
+            </div>
+
+            <!-- Error Message -->
+            {% if error %}
+            <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <!-- Pre-filled URL notification -->
+            {% if pre_filled %}
+            <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="font-medium">太好了！我们已从 URL 自动检测到您的 GitHub 仓库。</span>
+                </div>
+                <p class="text-sm mt-1">您现在可以为此仓库生成 Dockerfile，或根据需要修改 URL。</p>
+            </div>
+            {% endif %}
+
+            <!-- Input Form -->
+            <div class="mb-8">
+                <div class="card p-6">
+                    <form method="post" class="flex flex-col md:flex-row gap-4" onsubmit="prepareFormSubmit(event)">
+                        <div class="flex-1">
+                            <input 
+                                type="url" 
+                                name="repo_url" 
+                                id="repo_url"
+                                value="{{ repo_url }}"
+                                placeholder="https://github.com/用户名/仓库名"
+                                required
+                                class="form-input w-full text-base"
+                            >
+                        </div>
+                        <div class="md:w-auto">
+                            <button 
+                                type="submit"
+                                class="btn-primary py-3 px-6 text-base w-full"
+                            >
+                                自动化构建
+                            </button>
+                        </div>
+                        <input type="hidden" name="additional_instructions_hidden" id="additional_instructions_hidden" value="">
+                        <input type="hidden" name="model" id="model_hidden" value="{{ current_model }}">
+                    </form>
+                    
+                    <!-- Examples and Additional instructions row -->
+                    <div class="mt-6 flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+                        <!-- Additional instructions checkbox -->
+                        <div class="flex-shrink-0 self-start md:self-center">
+                            <div class="flex items-center">
+                                <input type="checkbox" 
+                                       id="show_instructions" 
+                                       onchange="toggleInstructions()"
+                                       class="w-4 h-4 text-[#4A90E2] bg-gray-100 border-gray-300 rounded focus:ring-[#4A90E2] focus:ring-2">
+                                <label for="show_instructions" class="ml-2 text-gray-700">附加说明</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Additional instructions textarea (spans full width) -->
+                    <div id="instructions_container" class="hidden mt-4">
+                        <textarea 
+                            id="additional_instructions"
+                            name="additional_instructions"
+                            placeholder="例如，使用 Alpine Linux，包含特定工具，针对生产环境优化等"
+                            rows="3"
+                            class="form-input w-full text-sm"
+                        ></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Successful Builds Section - Moved back inside GitHub tab -->
+            {% if successful_builds and successful_builds|length > 0 %}
+            <div class="mb-8">
+                <div class="card p-6">
+                    <h2 class="text-xl font-bold text-gray-900 mb-4">已构建成功的项目</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {% for build in successful_builds %}
+                        <a href="/builds/{{ build.repo_url | replace('https://github.com/', '') | replace('/', '_') }}" 
+                           class="build-item block border border-gray-200 rounded-lg p-4 hover:border-blue-300">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h3 class="font-medium text-gray-900 truncate">{{ build.result.project_name or build.result.repo_info.name if build.result.repo_info else 'Unknown Project' }}</h3>
+                                    <p class="text-sm text-gray-500 truncate mt-1">{{ build.repo_url }}</p>
+                                </div>
+                                <span class="inline-flex items-center text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-1"></span>
+                                    成功
+                                </span>
+                            </div>
+                            <div class="mt-3 flex justify-between items-center text-xs text-gray-500">
+                                <span>{{ build.build_time[:19].replace('T', ' ') }}</span>
+                                <span>{{ build.result.technology_stack or 'Unknown Stack' }}</span>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- HuggingFace Tab Content -->
+        <div id="huggingface" class="tab-content initial">
+            <div class="mb-10 text-center">
+                <p class="text-gray-600 text-lg max-w-2xl mx-auto">
+                    粘贴任何 HuggingFace 模型 URL，获取由AI为您量身定制的智能服务
+                </p>
+            </div>
+            
+            <div class="coming-soon card p-8">
+                <h3>即将推出</h3>
+                <p>HuggingFace 模型自动化构建功能正在开发中</p>
+            </div>
+        </div>
+        
+        <!-- ModelScope Tab Content -->
+        <div id="modelscope" class="tab-content initial">
+            <div class="mb-10 text-center">
+                <p class="text-gray-600 text-lg max-w-2xl mx-auto">
+                    粘贴任何 ModelScope 模型 URL，获取由AI为您量身定制的智能服务
+                </p>
+            </div>
+            
+            <div class="coming-soon card p-8">
+                <h3>即将推出</h3>
+                <p>ModelScope 模型自动化构建功能正在开发中</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-200 bg-white">
+        <div class="main-container mx-auto px-4 py-4 text-center">
+            <p class="text-gray-600 text-sm">
+                &copy; 2025 启智自动化构建. 保留所有权利.
             </p>
         </div>
+    </footer>
 
-        <!-- Error Message -->
-        {% if error %}
-        <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            {{ error }}
+    <!-- Loading State -->
+    {% if loading %}
+    <div class="card p-8">
+        <div class="flex flex-col items-center space-y-4">
+            <div class="loader"></div>
+            <p class="text-lg font-medium text-gray-900">正在分析仓库并生成 Dockerfile...</p>
+            <p class="text-sm text-gray-600">这可能需要一些时间</p>
         </div>
-        {% endif %}
+    </div>
+    {% endif %}
 
-        <!-- Pre-filled URL notification -->
-        {% if pre_filled %}
-        <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
-            <div class="flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <span class="font-medium">太好了！我们已从 URL 自动检测到您的 GitHub 仓库。</span>
+    <!-- Streaming State -->
+    {% if streaming %}
+    <div id="streaming-container">
+        <div class="card p-6">
+            
+            <!-- Status Display -->
+            <div class="text-center mb-6">
+                <div class="loader mx-auto mb-4"></div>
+                <h2 class="text-xl font-bold text-gray-900 mb-2">正在自动化构建</h2>
+                <p id="status-message" class="text-gray-600">连接中...</p>
             </div>
-            <p class="text-sm mt-1">您现在可以为此仓库生成 Dockerfile，或根据需要修改 URL。</p>
-        </div>
-        {% endif %}
 
-        <!-- Input Form -->
-        <div class="mb-8">
-            <div class="card p-6">
-                <form method="post" class="flex flex-col md:flex-row gap-4" onsubmit="prepareFormSubmit(event)">
-                    <div class="flex-1">
-                        <input 
-                            type="url" 
-                            name="repo_url" 
-                            id="repo_url"
-                            value="{{ repo_url }}"
-                            placeholder="https://github.com/用户名/仓库名"
-                            required
-                            class="form-input w-full text-base"
-                        >
-                    </div>
-                    <div class="md:w-auto">
-                        <button 
-                            type="submit"
-                            class="btn-primary py-3 px-6 text-base w-full"
-                        >
-                            自动化构建
-                        </button>
-                    </div>
-                    <input type="hidden" name="additional_instructions_hidden" id="additional_instructions_hidden" value="">
-                    <input type="hidden" name="model" id="model_hidden" value="{{ current_model }}">
-                </form>
-                
-                <!-- Examples and Additional instructions row -->
-                <div class="mt-6 flex flex-col md:flex-row md:justify-between md:items-start gap-4">
-                    <!-- Additional instructions checkbox -->
-                    <div class="flex-shrink-0 self-start md:self-center">
-                        <div class="flex items-center">
-                            <input type="checkbox" 
-                                   id="show_instructions" 
-                                   onchange="toggleInstructions()"
-                                   class="w-4 h-4 text-[#4A90E2] bg-gray-100 border-gray-300 rounded focus:ring-[#4A90E2] focus:ring-2">
-                            <label for="show_instructions" class="ml-2 text-gray-700">附加说明</label>
+            <!-- Progress Steps -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div id="step-clone" class="border border-gray-200 rounded p-4 transition-all duration-300">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
+                            <span class="text-sm font-bold">1</span>
                         </div>
+                        <span class="font-medium">克隆仓库</span>
                     </div>
                 </div>
-                
-                <!-- Additional instructions textarea (spans full width) -->
-                <div id="instructions_container" class="hidden mt-4">
-                    <textarea 
-                        id="additional_instructions"
-                        name="additional_instructions"
-                        placeholder="例如，使用 Alpine Linux，包含特定工具，针对生产环境优化等"
-                        rows="3"
-                        class="form-input w-full text-sm"
-                    ></textarea>
-                </div>
-            </div>
-        </div>
-
-        <!-- Successful Builds Section -->
-        {% if successful_builds and successful_builds|length > 0 %}
-        <div class="mb-8">
-            <div class="card p-6">
-                <h2 class="text-xl font-bold text-gray-900 mb-4">已构建成功的项目</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {% for build in successful_builds %}
-                    <a href="/builds/{{ build.repo_url | replace('https://github.com/', '') | replace('/', '_') }}" 
-                       class="build-item block border border-gray-200 rounded-lg p-4 hover:border-blue-300">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <h3 class="font-medium text-gray-900 truncate">{{ build.result.project_name or build.result.repo_info.name if build.result.repo_info else 'Unknown Project' }}</h3>
-                                <p class="text-sm text-gray-500 truncate mt-1">{{ build.repo_url }}</p>
-                            </div>
-                            <span class="inline-flex items-center text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                                <span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-1"></span>
-                                成功
-                            </span>
+                <div id="step-analyze" class="border border-gray-200 rounded p-4 transition-all duration-300">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
+                            <span class="text-sm font-bold">2</span>
                         </div>
-                        <div class="mt-3 flex justify-between items-center text-xs text-gray-500">
-                            <span>{{ build.build_time[:19].replace('T', ' ') }}</span>
-                            <span>{{ build.result.technology_stack or 'Unknown Stack' }}</span>
-                        </div>
-                    </a>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Loading State -->
-        {% if loading %}
-        <div class="card p-8">
-            <div class="flex flex-col items-center space-y-4">
-                <div class="loader"></div>
-                <p class="text-lg font-medium text-gray-900">正在分析仓库并生成 Dockerfile...</p>
-                <p class="text-sm text-gray-600">这可能需要一些时间</p>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Streaming State -->
-        {% if streaming %}
-        <div id="streaming-container">
-            <div class="card p-6">
-                
-                <!-- Status Display -->
-                <div class="text-center mb-6">
-                    <div class="loader mx-auto mb-4"></div>
-                    <h2 class="text-xl font-bold text-gray-900 mb-2">正在自动化构建</h2>
-                    <p id="status-message" class="text-gray-600">连接中...</p>
-                </div>
-
-                <!-- Progress Steps -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <div id="step-clone" class="border border-gray-200 rounded p-4 transition-all duration-300">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
-                                <span class="text-sm font-bold">1</span>
-                            </div>
-                            <span class="font-medium">克隆仓库</span>
-                        </div>
-                    </div>
-                    <div id="step-analyze" class="border border-gray-200 rounded p-4 transition-all duration-300">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
-                                <span class="text-sm font-bold">2</span>
-                            </div>
-                            <span class="font-medium">
+                        <span class="font-medium">
                                 分析结构
                                 <span class="block text-xs text-gray-500 mt-1">todo 更好的代码分析</span>
                             </span>
@@ -597,6 +705,81 @@
     </footer>
 
     <script>
+        // Tab switching function
+        function switchTab(tabName) {
+            // Hide all tab content
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+                content.classList.add('initial');
+            });
+            
+            // Remove active class from all tab buttons
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            const activeTab = document.getElementById(tabName);
+            if (activeTab) {
+                activeTab.classList.remove('initial');
+                activeTab.classList.add('active');
+            }
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+            
+            // Save the selected tab to localStorage
+            localStorage.setItem('selectedTab', tabName);
+        }
+        
+        // Function to restore the selected tab on page load
+        function restoreSelectedTab() {
+            // Check if there's a selected tab in localStorage
+            const selectedTab = localStorage.getItem('selectedTab');
+            if (selectedTab) {
+                // Find the tab button and click it
+                const tabButton = Array.from(document.querySelectorAll('.tab-button')).find(button => 
+                    button.textContent.toLowerCase().includes(selectedTab.toLowerCase())
+                );
+                if (tabButton) {
+                    // Remove initial class from all tabs first
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.add('initial');
+                    });
+                    
+                    // Simulate click to switch to the selected tab
+                    tabButton.click();
+                    return;
+                }
+            }
+            
+            // If no selected tab or tab not found, show GitHub tab by default
+            const githubTab = document.getElementById('github');
+            const githubTabButton = Array.from(document.querySelectorAll('.tab-button')).find(button => 
+                button.textContent.includes('GitHub')
+            );
+            
+            if (githubTab && githubTabButton) {
+                // Remove initial class from all tabs first
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.add('initial');
+                });
+                
+                githubTab.classList.remove('initial');
+                githubTab.classList.add('active');
+                githubTabButton.classList.add('active');
+            }
+        }
+        
+        // Call restoreSelectedTab when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            restoreSelectedTab();
+            // Set model selector to user's cached preference
+            setModelFromCache();
+        });
+        
         // Example submission function
         function submitExample(repoUrl) {
             const input = document.getElementById('repo_url');
