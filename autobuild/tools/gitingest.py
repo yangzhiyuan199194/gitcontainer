@@ -76,7 +76,8 @@ async def search_dockerfile(local_repo_path: str, summary: str, tree: str, conte
         return selected_dockerfile
 
     except Exception as e:
-        logger.error(f"Error searching for Dockerfile: {str(e)}")
+
+        logger.error(f"Error searching for Dockerfile: {str(e)}", exc_info=True)
         return None
 
 

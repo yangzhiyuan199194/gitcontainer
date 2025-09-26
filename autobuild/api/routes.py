@@ -331,7 +331,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         # Send final result - regardless of build success
         await ws_manager.send_complete("Generation complete!", final_result)
 
-        final_result["wiki_result"] = final_state["wiki_result"]
+        if final_state["wiki_result"]:
+            final_result["wiki_result"] = final_state["wiki_result"]
 
         # Save build record
         build_data = {
@@ -351,7 +352,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         logger.info(f"WebSocket disconnected for session {session_id}")
     except Exception as e:
         error_msg = f"Unexpected error: {str(e)}"
-        logger.error(error_msg)
+        logger.error(error_msg, exc_info=True)
         # Check if websocket is still open before trying to send error message
         try:
             if websocket.client_state.name == 'CONNECTED':
@@ -360,7 +361,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "content": error_msg
                 }))
         except Exception as send_error:
-            logger.error(f"Could not send error message, WebSocket likely closed: {send_error}")
+            logger.error(f"Could not send error message, WebSocket likely closed: {send_error}", exc_info=True)
 
         # Save failed build record if repo_url is available
         try:
@@ -374,14 +375,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 }
                 build_history_manager.save_build_record(repo_url, build_data)
         except Exception as save_error:
-            logger.error(f"Could not save failed build record: {save_error}")
+            logger.error(f"Could not save failed build record: {save_error}", exc_info=True)
 
     finally:
         # Clean up session data
         try:
             session_manager.update_session(session_id, {"status": "disconnected"})
         except Exception as se:
-            logger.error(f"Could not update_session disconnected: {se}")
+            logger.error(f"Could not update_session disconnected: {se}", exc_info=True)
             pass
 
 
