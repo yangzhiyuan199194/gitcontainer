@@ -47,7 +47,7 @@ async def analyze_repo_structure(local_repo_path: str) -> Dict[str, Any]:
                     with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
                         readme_content = f.read()
                 except Exception as e:
-                    logger.warning(f"Could not read README.md: {str(e)}")
+                    logger.warning(f"无法读取 README.md: {str(e)}")
                     readme_content = ""
 
     file_tree_str = '\n'.join(sorted(file_tree_lines))
@@ -124,7 +124,7 @@ Respond ONLY with a valid XML structure like this:
         messages = [
             {
                 "role": "system",
-                "content": "You are an expert technical documentation writer. Analyze repository structures and create comprehensive wiki documentation plans."
+                "content": "你是一位专业的技术文档编写专家。请分析仓库结构并创建全面的wiki文档计划。请用中文回复。"
             },
             {
                 "role": "user",
@@ -133,7 +133,7 @@ Respond ONLY with a valid XML structure like this:
         ]
 
         if ws_manager:
-            await ws_manager.send_chunk("🧠 Analyzing repository structure for wiki generation...\n")
+            await ws_manager.send_chunk("🧠 正在分析仓库结构以生成wiki...\n")
 
         result = await llm_client.call_llm(
             model=model,
@@ -297,43 +297,43 @@ async def generate_wiki_page_content(page_info: Dict[str, Any], file_tree: str, 
                         content = f.read()
                         # Limit file content length to avoid context overflow
                         if len(content) > 5000:
-                            content = content[:5000] + "\n\n... [Content truncated] ..."
-                        file_contents.append(f"File: {file_path}\n{content}\n")
+                            content = content[:5000] + "\n\n... [内容已截断] ..."
+                        file_contents.append(f"文件: {file_path}\n{content}\n")
                 except Exception as e:
-                    logger.warning(f"Could not read file {file_path}: {str(e)}")
+                    logger.warning(f"无法读取文件 {file_path}: {str(e)}")
 
         # Create prompt for generating page content
         prompt = f"""
-Generate a comprehensive wiki page for the following repository:
+为以下仓库生成全面的wiki页面:
 
-Repository Owner: {owner}
-Repository Name: {repo}
+仓库所有者: {owner}
+仓库名称: {repo}
 
-Page Title: {page_info['title']}
+页面标题: {page_info['title']}
 
-README Content:
-{readme_content[:1000]}  # Limit README length
+README 内容:
+{readme_content[:1000]}  # 限制 README 长度
 
-File Tree:
+文件树:
 {file_tree}
 
-Relevant File Contents:
+相关文件内容:
 {''.join(file_contents)}
 
-Please create a well-structured wiki page that:
-1. Provides a clear explanation of what this part of the repository does
-2. Documents key components, functions, or files
-3. Explains how to use or configure this functionality if applicable
-4. Mentions any important considerations or best practices
-5. Uses markdown formatting for better readability
+请创建一个结构良好的wiki页面，该页面应该:
+1. 清楚地解释仓库的这部分内容是做什么的
+2. 记录关键组件、函数或文件
+3. 解释如何使用或配置此功能（如适用）
+4. 提及任何重要的注意事项或最佳实践
+5. 使用代码格式以获得更好的可读性
 
-Do not include any XML tags or other formatting in your response, just the markdown content.
+不要在回复中包含任何XML标签或其他格式，只需要代码内容。
 """
 
         messages = [
             {
                 "role": "system",
-                "content": "You are an expert technical documentation writer creating clear, comprehensive wiki documentation for software repositories."
+                "content": "你是一位专业的技术文档编写专家，正在为软件仓库创建清晰、全面的wiki文档。请用中文回复。"
             },
             {
                 "role": "user",
@@ -342,7 +342,7 @@ Do not include any XML tags or other formatting in your response, just the markd
         ]
 
         if ws_manager:
-            await ws_manager.send_chunk(f"📝 Generating content for '{page_info['title']}'...\n")
+            await ws_manager.send_chunk(f"📝 正在生成 '{page_info['title']}' 的内容...\n")
 
         result = await llm_client.call_llm(
             model=model,
@@ -391,7 +391,7 @@ async def wiki_generator_tool(local_repo_path: str, owner: str, repo: str, model
     """
     try:
         if ws_manager:
-            await ws_manager.send_chunk("🔍 Starting wiki generation process...\n")
+            await ws_manager.send_chunk("🔍 开始wiki生成过程...\n")
 
         # Analyze repository structure
         repo_data = await analyze_repo_structure(local_repo_path)
@@ -411,7 +411,7 @@ async def wiki_generator_tool(local_repo_path: str, owner: str, repo: str, model
         pages = wiki_structure["pages"]
 
         if ws_manager:
-            await ws_manager.send_chunk(f"📄 Generating content for {len(pages)} wiki pages...\n")
+            await ws_manager.send_chunk(f"📄 正在生成 {len(pages)} 个wiki页面的内容...\n")
 
         for i, page in enumerate(pages):
             if ws_manager:
@@ -433,10 +433,10 @@ async def wiki_generator_tool(local_repo_path: str, owner: str, repo: str, model
             else:
                 # If one page fails, we continue with others
                 logger.warning(
-                    f"Failed to generate content for page {page['id']}: {page_content.get('error', 'Unknown error')}")
+                    f"未能生成页面 {page['id']} 的内容: {page_content.get('error', '未知错误')}")
 
         if ws_manager:
-            await ws_manager.send_chunk("✅ Wiki generation process completed!\n")
+            await ws_manager.send_chunk("✅ Wiki生成过程完成!\n")
 
         return {
             "success": True,
@@ -445,7 +445,7 @@ async def wiki_generator_tool(local_repo_path: str, owner: str, repo: str, model
         }
 
     except Exception as e:
-        error_msg = f"Error during wiki generation: {str(e)}"
+        error_msg = f"Wiki生成过程中出错: {str(e)}"
         logger.error(error_msg)
         if ws_manager:
             await ws_manager.send_chunk(f"❌ {error_msg}\n")
