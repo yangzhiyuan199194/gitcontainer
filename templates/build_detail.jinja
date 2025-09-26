@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>构建详情 - {{ build_record.repo_url }}</title>
+    <title>项目详情 - {{ build_record.repo_url }}</title>
     
     <!-- Favicon links -->
     <link rel="icon" type="image/png" sizes="16x16" href="/static/icons8-docker-doodle-16.png">
@@ -12,6 +12,18 @@
     <link rel="shortcut icon" href="/static/icons8-docker-doodle-32.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 marked.js 用于 Markdown 渲染 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- 引入 DOMPurify 用于防止 XSS 攻击 -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@2.3.8/dist/purify.min.js"></script>
+    <!-- 引入 highlight.js 用于代码高亮 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.5.1/styles/github.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.5.1/lib/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.5.1/lib/languages/bash.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.5.1/lib/languages/go.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.5.1/lib/languages/dockerfile.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.5.1/lib/languages/yaml.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.5.1/lib/languages/markdown.min.js"></script>
     <style>
         .loader {
             border: 4px solid #E6F2FF;
@@ -49,201 +61,289 @@
             border: 1px solid #6B7280;
             border-radius: 0.375rem;
             font-weight: 500;
-            transition: all 0.2s;
         }
         .btn-secondary:hover {
-            background-color: #4B5563;
-            border-color: #4B5563;
+            background-color: #555965;
+            border-color: #555965;
         }
-        .main-container {
-            width: 80%;
+        .parsed-log {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
         }
-        /* Model selector styles */
-        .model-selector {
-            position: relative;
-            display: inline-block;
+        .parsed-log .type {
+            font-weight: bold;
+            padding: 0 0.25rem;
+            border-radius: 0.125rem;
         }
-        .model-selector select {
-            appearance: none;
-            background-color: #fff;
-            border: 1px solid #D1D5DB;
+        .parsed-log .type.status {
+            background-color: #DBEAFE;
+            color: #1E40AF;
+        }
+        .parsed-log .type.chunk {
+            background-color: #ECFDF5;
+            color: #047857;
+        }
+        .parsed-log .type.error {
+            background-color: #FEF2F2;
+            color: #B91C1C;
+        }
+        .parsed-log .type.build_log {
+            background-color: #FFFBEB;
+            color: #B45309;
+        }
+        .parsed-log .type.phase {
+            background-color: #F0F9FF;
+            color: #0369A1;
+        }
+        .parsed-log .type.stream {
+            background-color: #F5F3FF;
+            color: #6D28D9;
+        }
+        .parsed-log .type.complete {
+            background-color: #F0FDFA;
+            color: #0D9488;
+        }
+        .parsed-log .type.default {
+            background-color: #F3F4F6;
+            color: #374151;
+        }
+        .wiki-nav {
+            position: sticky;
+            top: 1rem;
+        }
+        .wiki-content {
+            scroll-behavior: smooth;
+        }
+        .wiki-page {
+            scroll-margin-top: 2rem;
+        }
+        /* Markdown content styling */
+        .markdown-content h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 1.5rem 0 1rem;
+            color: #111827;
+            border-bottom: 1px solid #E5E7EB;
+            padding-bottom: 0.5rem;
+        }
+        .markdown-content h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 1.25rem 0 1rem;
+            color: #111827;
+            border-bottom: 1px solid #E5E7EB;
+            padding-bottom: 0.5rem;
+        }
+        .markdown-content h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 1rem 0 0.75rem;
+            color: #111827;
+        }
+        .markdown-content p {
+            margin: 0.75rem 0;
+            line-height: 1.6;
+            color: #374151;
+        }
+        .markdown-content ul, .markdown-content ol {
+            margin: 0.75rem 0;
+            padding-left: 1.5rem;
+        }
+        .markdown-content li {
+            margin: 0.25rem 0;
+            line-height: 1.6;
+        }
+        /* 所有code标签统一使用黑色背景和绿色文本样式 */
+        .markdown-content code:not(.hljs) {
+            background-color: #000000; /* 黑色背景 */
+            color: #00FF00; /* 绿色文本 */
+            padding: 0.2rem 0.4rem;
             border-radius: 0.375rem;
-            padding: 0.5rem 2.5rem 0.5rem 1rem;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.875rem;
+            user-select: auto; /* 允许选择文本 */
+        }
+        .markdown-content pre {
+            background-color: #000000; /* 黑色背景 */
+            color: #00FF00; /* 绿色文本 */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
             font-size: 0.875rem;
             line-height: 1.25rem;
-            color: #374151;
-            cursor: pointer;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-            background-position: right 0.5rem center;
-            background-repeat: no-repeat;
-            background-size: 1.5em 1.5em;
-            padding-right: 2.5rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            min-height: 2rem;
+            border: 1px solid #E5E7EB;
         }
-        .model-selector select:focus {
-            outline: none;
-            border-color: #4A90E2;
-            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+        .markdown-content pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            white-space: pre;
+            user-select: auto; /* 允许选择文本 */
         }
-        .model-selector label {
-            position: absolute;
-            top: -0.5rem;
-            left: 0.75rem;
-            background-color: #fff;
-            padding: 0 0.25rem;
-            font-size: 0.75rem;
-            color: #4A90E2;
-            font-weight: 500;
+        .markdown-content blockquote {
+            border-left: 4px solid #E5E7EB;
+            padding-left: 1rem;
+            margin: 1rem 0;
+            color: #4B5563;
         }
-        /* Log content styling */
+        .markdown-content a {
+            color: #3B82F6;
+            text-decoration: underline;
+        }
+        .markdown-content a:hover {
+            color: #1D4ED8;
+        }
+        .markdown-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        .markdown-content th, .markdown-content td {
+            border: 1px solid #E5E7EB;
+            padding: 0.5rem;
+            text-align: left;
+        }
+        .markdown-content th {
+            background-color: #F9FAFB;
+            font-weight: 600;
+        }
+        .markdown-content hr {
+            border: 0;
+            border-top: 1px solid #E5E7EB;
+            margin: 1.5rem 0;
+        }
+        /* 内容显示区域样式，支持HTML内容 */
         #log-content {
             font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
             font-size: 0.875rem; /* 14px */
             line-height: 1.25rem; /* 20px */
             white-space: pre-wrap;
             word-break: break-word;
-            height: 400px;
+            height: 32rem; /* 增大高度到 h-[512px] (32rem) */
+            min-height: 24rem; /* 最小高度保持 h-96 */
+            max-height: 75vh; /* 最大高度不超过视口的75% */
             overflow-y: auto;
             background-color: #000000;
-            color: #00FF00; /* Default green text */
+            color: #00FF00; /* 默认绿色文本 */
+            resize: vertical; /* 允许垂直调整大小 */
+        }
+        
+        /* 可调整大小的容器 */
+        .resizable-container {
             resize: vertical;
+            overflow: hidden;
+            min-height: 24rem;
+            max-height: 75vh;
+            position: relative;
+        }
+        
+        /* 调整大小的手柄 */
+        .resize-handle {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 10px;
+            background: linear-gradient(to bottom, #E5E7EB 0%, #E5E7EB 20%, transparent 20%);
+            cursor: ns-resize;
+            border-bottom: 1px solid #E5E7EB;
+        }
+        
+        /* 内容显示区域在可调整容器中 */
+        #log-content {
+            height: calc(100% - 10px); /* 减去手柄的高度 */
+            overflow-y: auto;
+        }
+        
+        /* Build history item */
+        .build-history-item {
+            background: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
             padding: 1rem;
-            border-radius: 0.375rem;
+            margin-bottom: 1rem;
         }
-        
-        #log-content.parsed-log {
-            white-space: pre-line;
+        .build-history-item .status {
+            font-weight: 600;
+            color: #1E40AF;
         }
-        
-        .log-entry {
-            margin-bottom: 0.25rem;
+        .build-history-item .repo-url {
+            font-size: 0.875rem;
+            color: #4B5563;
         }
-        
-        .timestamp {
-            color: #888888;
+        .build-history-item .timestamp {
+            font-size: 0.875rem;
+            color: #4B5563;
         }
-        
-        .type {
-            font-weight: bold;
-            margin: 0 0.5rem;
-        }
-        
-        .type.status { color: #FFFF00; }
-        .type.chunk { color: #00FF00; }
-        .type.error { color: #FF0000; }
-        .type.build_log { color: #00FFFF; }
-        .type.phase { color: #FFA500; }
-        .type.stream { color: #00FFFF; }
-        .type.complete { color: #00FF00; }
-        .type.default { color: #FFFFFF; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col">
-    <!-- Header -->
-    <header class="border-b border-gray-200 bg-white">
-        <div class="main-container mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold">
-                <a href="/" class="hover:opacity-80 transition-opacity">
-                    <span class="text-gray-900">启智</span><span class="text-[#4A90E2]">自动化构建</span>
+    <div class="page-wrapper">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b border-gray-200">
+            <div class="main-container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <a href="/" class="flex items-center space-x-2">
+                    <div class="bg-blue-500 text-white p-2 rounded-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        </svg>
+                    </div>
+                    <h1 class="text-xl font-bold text-gray-900">Gitcontainer</h1>
                 </a>
-            </h1>
-            {% if available_models and available_models|length > 1 %}
-            <div class="model-selector">
-                <label for="model-select">AI 模型</label>
-                <select id="model-select" name="model" class="model-select">
-                    {% for model in available_models %}
-                    <option value="{{ model }}" {% if model == current_model %}selected{% endif %}>{{ model }}</option>
-                    {% endfor %}
-                </select>
+                <a href="/" class="btn-secondary px-4 py-2 text-sm">
+                    返回主页
+                </a>
             </div>
-            {% endif %}
         </div>
     </header>
 
     <!-- Main Content -->
-    <main class="main-container mx-auto px-4 py-8 flex-grow">
-        <!-- Build Info Header -->
-        <div class="mb-8">
-            <div class="card p-6">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h1 class="text-2xl font-bold text-gray-900 mb-2">构建详情</h1>
-                        <p class="text-gray-600 mb-4">{{ build_record.repo_url }}</p>
-                        <div class="flex items-center text-sm text-gray-500">
-                            <span>构建时间: {{ build_record.build_time }}</span>
-                            <span class="mx-2">•</span>
-                            <span class="inline-flex items-center">
-                                {% if build_record.status == "success" %}
-                                <span class="w-2 h-2 rounded-full bg-green-500 mr-1"></span>
-                                <span class="text-green-600">构建成功</span>
-                                {% else %}
-                                <span class="w-2 h-2 rounded-full bg-red-500 mr-1"></span>
-                                <span class="text-red-600">构建失败</span>
-                                {% endif %}
-                            </span>
-                        </div>
-                    </div>
-                    <div class="flex space-x-2">
-                        <a href="/" class="btn-secondary px-4 py-2 text-sm">
-                            返回首页
-                        </a>
-                    </div>
-                </div>
-            </div>
+    <main class="main-container mx-auto px-4 py-6 content-wrapper flex-grow">
+        <div class="mb-6">
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">项目详情</h2>
+            <p class="text-gray-600">{{ build_record.repo_url }}</p>
         </div>
 
-        <!-- Build Results -->
-        {% if build_record.result %}
-        <div class="card p-6 space-y-6 mb-8">
-            <!-- Project Info -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="border border-gray-200 rounded p-4">
-                    <h3 class="font-medium text-gray-900 mb-1">项目</h3>
-                    <p class="text-sm text-gray-600">{{ build_record.result.project_name }}</p>
-                </div>
-                <div class="border border-gray-200 rounded p-4">
-                    <h3 class="font-medium text-gray-900 mb-1">技术栈</h3>
-                    <p class="text-sm text-gray-600">{{ build_record.result.technology_stack }}</p>
-                </div>
-                <div class="border border-gray-200 rounded p-4">
-                    <h3 class="font-medium text-gray-900 mb-1">仓库信息</h3>
-                    <p class="text-sm text-gray-600">
-                        {{ build_record.result.repo_info.file_count }} 个文件 
-                        ({{ build_record.result.repo_info.size_mb }} MB)
-                    </p>
-                </div>
-            </div>
-
-            <!-- Dockerfile -->
-            <div>
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-lg font-medium text-gray-900">Dockerfile</h3>
-                    <button 
-                        onclick="copyDockerfile()"
-                        class="btn-primary px-4 py-2 flex items-center gap-2 text-sm"
-                    >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                        </svg>
-                        复制 Dockerfile
-                    </button>
-                </div>
-                <div class="bg-gray-800 text-green-400 font-mono text-sm p-4 rounded-lg overflow-x-auto">
-                    <div class="mb-2 flex items-center">
-                        <div class="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
-                        <div class="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
-                        <div class="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-                        <span class="ml-2">root@container:~#</span>
+        {% if build_record.status == "success" and build_record.result %}
+        <div class="space-y-6">
+            <!-- Build Summary -->
+            <div class="card p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">项目摘要</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="border border-gray-200 rounded p-4">
+                        <h3 class="font-medium text-gray-900 mb-1">项目名称</h3>
+                        <p class="text-sm text-gray-600">{{ build_record.result.project_name }}</p>
                     </div>
-                    <pre class="p-2 whitespace-pre-wrap break-words" id="dockerfile-display">
-{{ build_record.result.dockerfile }}
-                    </pre>
+                    <div class="border border-gray-200 rounded p-4">
+                        <h3 class="font-medium text-gray-900 mb-1">技术栈</h3>
+                        <p class="text-sm text-gray-600">{{ build_record.result.technology_stack }}</p>
+                    </div>
+                    <div class="border border-gray-200 rounded p-4">
+                        <h3 class="font-medium text-gray-900 mb-1">仓库信息</h3>
+                        <p class="text-sm text-gray-600">
+                            {{ build_record.result.repo_info.file_count }} 个文件 
+                            ({{ build_record.result.repo_info.size_mb }} MB)
+                        </p>
+                    </div>
                 </div>
             </div>
 
             <!-- Docker Image Build Info -->
             {% if build_record.result.image_build %}
-            <div>
-                <h3 class="text-lg font-medium text-gray-900 mb-3">Docker 镜像构建</h3>
+            <div class="card p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Docker 镜像构建</h3>
                 <div class="border border-gray-200 rounded p-4">
                 {% if build_record.result.image_build.success %}
                     <div class="bg-green-50 border border-green-200 rounded p-3 mb-3">
@@ -267,8 +367,9 @@
                     {% if build_record.result.image_build.build_log %}
                     <div class="mt-3">
                         <h4 class="font-medium text-gray-700 mb-2">构建日志:</h4>
-                        <div class="bg-gray-800 text-red-400 p-3 rounded font-mono text-xs overflow-auto max-h-40">
-                            {{ build_record.result.image_build.build_log }}
+                        <div class="border border-gray-200 rounded-lg p-4 bg-black resizable-container">
+                            <div class="font-mono text-red-400 text-sm whitespace-pre-wrap break-words" style="height: 32rem; overflow-y: auto;">{{ build_record.result.image_build.build_log }}</div>
+                            <div class="resize-handle"></div>
                         </div>
                     </div>
                     {% endif %}
@@ -276,14 +377,104 @@
                 </div>
             </div>
             {% endif %}
+
+            <!-- Tab Navigation -->
+            <div class="card p-6">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-8">
+                        <button onclick="switchTab('wiki')" id="tab-wiki" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                            Wiki 文档
+                        </button>
+                        <button onclick="switchTab('docker')" id="tab-docker" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                            Dockerfile & 构建日志
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Tab Content -->
+                <div class="mt-6">
+                    <!-- Wiki Content Tab -->
+                    <div id="tab-content-wiki" class="tab-content" style="display: none;">
+                        {% if build_record.result.wiki_result and build_record.result.wiki_result.success %}
+                        <div class="flex flex-col lg:flex-row gap-6">
+                            <!-- Wiki Navigation -->
+                            <div class="wiki-nav lg:w-1/4">
+                                <div class="border border-gray-200 rounded p-4 bg-white">
+                                    <h4 class="font-medium text-gray-900 mb-3">页面导航</h4>
+                                    <ul class="space-y-2">
+                                        {% for page in build_record.result.wiki_result.generated_pages.values() %}
+                                        <li>
+                                            <button onclick="showWikiPage('{{ page.id }}')" 
+                                                    id="wiki-nav-{{ page.id }}"
+                                                    class="wiki-nav-btn text-left w-full text-blue-600 hover:text-blue-800 text-sm block py-1 px-2 rounded hover:bg-blue-50 transition-colors {% if loop.index0 == 0 %}bg-blue-100 font-medium{% endif %}">
+                                                {{ page.title }}
+                                            </button>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <!-- Wiki Pages Content -->
+                            <div class="wiki-content lg:w-3/4">
+                                {% for page in build_record.result.wiki_result.generated_pages.values() %}
+                                <div id="wiki-page-{{ page.id }}" class="wiki-page" {% if loop.index0 != 0 %}style="display: none;"{% endif %}>
+                                    <div class="markdown-content" data-raw="{{ page.content | escape }}">
+                                        {{ page.content | safe }}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-8 text-gray-500">
+                            <p>暂无 Wiki 文档</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Docker Content Tab -->
+                    <div id="tab-content-docker" class="tab-content" style="display: none;">
+                        <!-- Dockerfile -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-lg font-medium text-gray-900">Dockerfile</h3>
+                                <button 
+                                    onclick="copyDockerfile()"
+                                    class="btn-primary px-4 py-2 flex items-center gap-2 text-sm"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                    </svg>
+                                    复制 Dockerfile
+                                </button>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-4 bg-black">
+                                <div class="mb-2 flex items-center">
+                                    <div class="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                                    <span class="ml-2 text-gray-400">root@container:~#</span>
+                                </div>
+                                <pre class="font-mono text-green-400 text-sm whitespace-pre-wrap break-words" id="dockerfile-display">
+{{ build_record.result.dockerfile }}
+                                </pre>
+                            </div>
+                        </div>
+                        
+                        <!-- Build Logs -->
+                        <div class="card p-6 mt-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-3">构建日志</h3>
+                            <div class="border border-gray-200 rounded-lg p-4 bg-black resizable-container">
+                                <div id="log-content" class="font-mono text-green-400 text-sm whitespace-pre-wrap break-words">{{ log_content }}</div>
+                                <div class="resize-handle"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         {% endif %}
-
-        <!-- Build Logs -->
-        <div class="card p-6">
-            <h3 class="text-lg font-medium text-gray-900 mb-3">构建日志</h3>
-            <div id="log-content">{{ log_content }}</div>
-        </div>
     </main>
 
     <!-- Footer -->
@@ -292,16 +483,114 @@
             Gitcontainer - AI-powered Dockerfile Generator
         </div>
     </footer>
+    </div>
 
     <script>
+        // Configure marked.js
+        marked.setOptions({
+            gfm: true,
+            breaks: false, // 改为false以正确处理换行
+            smartLists: true,
+            smartypants: true,
+            highlight: function(code, lang) {
+                try {
+                    // 对于bash语言，我们不使用highlight.js，而是返回原始代码
+                    // 这样可以保持我们自定义的黑色背景和绿色文本样式
+                    if (lang && (lang === 'bash' || lang === 'shell')) {
+                        // 返回未高亮的代码，让它使用我们自定义的样式
+                        return code;
+                    } else if (lang && hljs.getLanguage(lang)) {
+                        return hljs.highlight(code, { language: lang }).value;
+                    } else {
+                        return hljs.highlightAuto(code).value;
+                    }
+                } catch (e) {
+                    return code;
+                }
+            }
+        });
+
+        // Tab switching function
+        function switchTab(tabName) {
+            // Hide all tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('border-blue-500', 'text-blue-600');
+                button.classList.add('border-transparent', 'text-gray-500');
+            });
+            
+            // Show selected tab content
+            document.getElementById('tab-content-' + tabName).style.display = 'block';
+            
+            // Add active class to selected tab button
+            const activeTabButton = document.getElementById('tab-' + tabName);
+            activeTabButton.classList.remove('border-transparent', 'text-gray-500');
+            activeTabButton.classList.add('border-blue-500', 'text-blue-600');
+            
+            // If switching to wiki tab, show the first wiki page
+            if (tabName === 'wiki') {
+                showWikiPage(Object.keys({% if build_record.result.wiki_result and build_record.result.wiki_result.success %}{{ build_record.result.wiki_result.generated_pages | tojson }}{% else %}{}{% endif %})[0] || '');
+            }
+        }
+        
+        // Function to switch between wiki pages
+        function showWikiPage(pageId) {
+            // Hide all wiki pages
+            const wikiPages = document.querySelectorAll('.wiki-page');
+            wikiPages.forEach(page => {
+                page.style.display = 'none';
+            });
+            
+            // Show selected wiki page
+            const selectedPage = document.getElementById('wiki-page-' + pageId);
+            if (selectedPage) {
+                selectedPage.style.display = 'block';
+            }
+            
+            // Update navigation button styles
+            const navButtons = document.querySelectorAll('.wiki-nav-btn');
+            navButtons.forEach(btn => {
+                btn.classList.remove('bg-blue-100', 'font-medium');
+            });
+            
+            const activeNavButton = document.getElementById('wiki-nav-' + pageId);
+            if (activeNavButton) {
+                activeNavButton.classList.add('bg-blue-100', 'font-medium');
+            }
+            
+            // Re-render the markdown content to ensure proper display
+            if (selectedPage) {
+                const contentElement = selectedPage.querySelector('.markdown-content');
+                if (contentElement && contentElement.dataset.raw) {
+                    const rawContent = contentElement.dataset.raw;
+                    try {
+                        // Decode HTML entities and render markdown
+                        const decodedContent = decodeURIComponent(rawContent.replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+                        contentElement.innerHTML = marked.parse(decodedContent);
+                    } catch (e) {
+                        console.error('Error rendering markdown:', e);
+                    }
+                }
+            }
+        }
+
         // Copy Dockerfile to clipboard
         function copyDockerfile() {
-            const dockerfileContent = document.getElementById('dockerfile-display').textContent;
-            navigator.clipboard.writeText(dockerfileContent).then(() => {
-                // Show success message
+            const dockerfileText = document.getElementById('dockerfile-display').textContent;
+            navigator.clipboard.writeText(dockerfileText).then(() => {
+                // Show success feedback
                 const button = event.target.closest('button');
                 const originalText = button.innerHTML;
-                button.innerHTML = '已复制!';
+                button.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    已复制
+                `;
                 setTimeout(() => {
                     button.innerHTML = originalText;
                 }, 2000);
@@ -309,83 +598,12 @@
                 console.error('Failed to copy: ', err);
             });
         }
-        
-        // Parse and render log content
+
+        // Initialize first tab on page load
         document.addEventListener('DOMContentLoaded', function() {
-            const logContentElement = document.getElementById('log-content');
-            if (logContentElement) {
-                const rawContent = logContentElement.textContent || logContentElement.innerText;
-                if (rawContent && (rawContent.trim().startsWith('{') || rawContent.trim().includes('{"type":'))) {
-                    try {
-                        // Split content into lines and parse each JSON line
-                        const lines = rawContent.trim().split('\n');
-                        let formattedContent = '';
-                        
-                        lines.forEach(line => {
-                            if (line.trim()) {
-                                try {
-                                    const logEntry = JSON.parse(line);
-                                    formattedContent += formatLogEntry(logEntry) + '\n';
-                                } catch (e) {
-                                    // If JSON parsing fails, display the line as is
-                                    formattedContent += line + '\n';
-                                }
-                            }
-                        });
-                        
-                        logContentElement.innerHTML = formattedContent;
-                        logContentElement.className += ' parsed-log';
-                    } catch (e) {
-                        // If parsing fails, leave the content as is
-                        console.error('Failed to parse log content:', e);
-                    }
-                }
-            }
+            // 默认显示第一个tab (Wiki文档)
+            switchTab('wiki');
         });
-        
-        function formatLogEntry(entry) {
-            const timestamp = entry.timestamp ? new Date(entry.timestamp * 1000).toLocaleTimeString() : '';
-            const type = entry.type || 'unknown';
-            const content = entry.content || '';
-            
-            // Special handling for different types
-            let formattedContent = content;
-            if (type === 'chunk' || type === 'build_log') {
-                // For chunk and build_log, remove extra newlines at the end
-                formattedContent = content.replace(/\n+$/, '');
-            }
-            
-            // Apply different styling based on type
-            let typeClass = '';
-            switch(type) {
-                case 'status':
-                    typeClass = 'status';
-                    break;
-                case 'chunk':
-                    typeClass = 'chunk';
-                    break;
-                case 'error':
-                    typeClass = 'error';
-                    break;
-                case 'build_log':
-                    typeClass = 'build_log';
-                    break;
-                case 'phase_start':
-                case 'phase_end':
-                    typeClass = 'phase';
-                    break;
-                case 'stream_start':
-                    typeClass = 'stream';
-                    break;
-                case 'complete':
-                    typeClass = 'complete';
-                    break;
-                default:
-                    typeClass = 'default';
-            }
-            
-            return `[${timestamp}] <span class="type ${typeClass}">${type.toUpperCase()}</span>: ${formattedContent}`;
-        }
     </script>
 </body>
 </html>
