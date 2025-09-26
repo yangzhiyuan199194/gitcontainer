@@ -254,455 +254,466 @@
         .coming-soon p {
             font-size: 0.875rem;
         }
+        
+        /* 确保页脚始终在底部 */
+        .page-wrapper {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .content-wrapper {
+            flex: 1;
+        }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen flex flex-col">
-    <!-- Header -->
-    <header class="border-b border-gray-200 bg-white">
-        <div class="main-container mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold">
-                <a href="/" class="hover:opacity-80 transition-opacity">
-                    <span class="text-gray-900">启智</span><span class="text-[#4A90E2]">自动化构建</span>
-                </a>
-            </h1>
-            {% if available_models and available_models|length > 1 %}
-            <div class="model-selector">
-                <label for="model-select">AI 模型</label>
-                <select id="model-select" name="model" class="model-select" onchange="updateModel(this.value)">
-                    {% for model in available_models %}
-                    <option value="{{ model }}" {% if model == current_model %}selected{% endif %}>{{ model }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            {% endif %}
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="main-container mx-auto px-4 py-8 flex-grow">
-        <!-- Tab Navigation -->
-        <div class="tab-container">
-            <div class="flex border-b border-gray-200">
-                <button class="tab-button active" onclick="switchTab('github')">GitHub</button>
-                <button class="tab-button" onclick="switchTab('huggingface')">HuggingFace</button>
-                <button class="tab-button" onclick="switchTab('modelscope')">ModelScope</button>
-            </div>
-        </div>
-        
-        <!-- GitHub Tab Content -->
-        <div id="github" class="tab-content initial active">
-            <!-- Hero Section -->
-            <div class="mb-10 text-center">
-                <p class="text-gray-600 text-lg max-w-2xl mx-auto">
-                    粘贴任何 GitHub 仓库 URL，获取由AI为您量身定制的智能服务
-                </p>
-            </div>
-
-            <!-- Error Message -->
-            {% if error %}
-            <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-                {{ error }}
-            </div>
-            {% endif %}
-
-            <!-- Pre-filled URL notification -->
-            {% if pre_filled %}
-            <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
-                <div class="flex items-center gap-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <span class="font-medium">太好了！我们已从 URL 自动检测到您的 GitHub 仓库。</span>
-                </div>
-                <p class="text-sm mt-1">您现在可以为此仓库生成 Dockerfile，或根据需要修改 URL。</p>
-            </div>
-            {% endif %}
-
-            <!-- Input Form -->
-            <div class="mb-8">
-                <div class="card p-6">
-                    <form method="post" class="flex flex-col md:flex-row gap-4" onsubmit="prepareFormSubmit(event)">
-                        <div class="flex-1">
-                            <input 
-                                type="url" 
-                                name="repo_url" 
-                                id="repo_url"
-                                value="{{ repo_url }}"
-                                placeholder="https://github.com/用户名/仓库名"
-                                required
-                                class="form-input w-full text-base"
-                            >
-                        </div>
-                        <div class="md:w-auto">
-                            <button 
-                                type="submit"
-                                class="btn-primary py-3 px-6 text-base w-full"
-                            >
-                                自动化构建
-                            </button>
-                        </div>
-                        <input type="hidden" name="additional_instructions_hidden" id="additional_instructions_hidden" value="">
-                        <input type="hidden" name="model" id="model_hidden" value="{{ current_model }}">
-                    </form>
-                    
-                    <!-- Examples and Additional instructions row -->
-                    <div class="mt-6 flex flex-col md:flex-row md:justify-between md:items-start gap-4">
-                        <!-- Additional instructions checkbox -->
-                        <div class="flex-shrink-0 self-start md:self-center">
-                            <div class="flex items-center">
-                                <input type="checkbox" 
-                                       id="show_instructions" 
-                                       onchange="toggleInstructions()"
-                                       class="w-4 h-4 text-[#4A90E2] bg-gray-100 border-gray-300 rounded focus:ring-[#4A90E2] focus:ring-2">
-                                <label for="show_instructions" class="ml-2 text-gray-700">附加说明</label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Additional instructions textarea (spans full width) -->
-                    <div id="instructions_container" class="hidden mt-4">
-                        <textarea 
-                            id="additional_instructions"
-                            name="additional_instructions"
-                            placeholder="例如，使用 Alpine Linux，包含特定工具，针对生产环境优化等"
-                            rows="3"
-                            class="form-input w-full text-sm"
-                        ></textarea>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Successful Builds Section - Moved back inside GitHub tab -->
-            {% if successful_builds and successful_builds|length > 0 %}
-            <div class="mb-8">
-                <div class="card p-6">
-                    <h2 class="text-xl font-bold text-gray-900 mb-4">已构建成功的项目</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {% for build in successful_builds %}
-                        <a href="/builds/{{ build.repo_url | replace('https://github.com/', '') | replace('/', '_') }}" 
-                           class="build-item block border border-gray-200 rounded-lg p-4 hover:border-blue-300">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <h3 class="font-medium text-gray-900 truncate">{{ build.result.project_name or build.result.repo_info.name if build.result.repo_info else 'Unknown Project' }}</h3>
-                                    <p class="text-sm text-gray-500 truncate mt-1">{{ build.repo_url }}</p>
-                                </div>
-                                <span class="inline-flex items-center text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-1"></span>
-                                    成功
-                                </span>
-                            </div>
-                            <div class="mt-3 text-xs text-gray-500">
-                                <div>{{ build.result.technology_stack or 'Unknown Stack' }}</div>
-                                <div class="mt-2">{{ build.build_time[:19].replace('T', ' ') }}</div>
-                            </div>
-                        </a>
+<body class="bg-gray-50">
+    <div class="page-wrapper">
+        <!-- Header -->
+        <header class="border-b border-gray-200 bg-white">
+            <div class="main-container mx-auto px-4 py-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold">
+                    <a href="/" class="hover:opacity-80 transition-opacity">
+                        <span class="text-gray-900">启智</span><span class="text-[#4A90E2]">自动化构建</span>
+                    </a>
+                </h1>
+                {% if available_models and available_models|length > 1 %}
+                <div class="model-selector">
+                    <label for="model-select">AI 模型</label>
+                    <select id="model-select" name="model" class="model-select" onchange="updateModel(this.value)">
+                        {% for model in available_models %}
+                        <option value="{{ model }}" {% if model == current_model %}selected{% endif %}>{{ model }}</option>
                         {% endfor %}
-                    </div>
+                    </select>
+                </div>
+                {% endif %}
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-container mx-auto px-4 py-8 content-wrapper">
+            <!-- Tab Navigation -->
+            <div class="tab-container">
+                <div class="flex border-b border-gray-200">
+                    <button class="tab-button active" onclick="switchTab('github')">GitHub</button>
+                    <button class="tab-button" onclick="switchTab('huggingface')">HuggingFace</button>
+                    <button class="tab-button" onclick="switchTab('modelscope')">ModelScope</button>
                 </div>
             </div>
-            {% endif %}
-        </div>
-        
-        <!-- HuggingFace Tab Content -->
-        <div id="huggingface" class="tab-content initial">
-            <div class="mb-10 text-center">
-                <p class="text-gray-600 text-lg max-w-2xl mx-auto">
-                    粘贴任何 HuggingFace 模型 URL，获取由AI为您量身定制的智能服务
-                </p>
-            </div>
             
-            <div class="coming-soon card p-8">
-                <h3>即将推出</h3>
-                <p>HuggingFace 模型自动化构建功能正在开发中</p>
-            </div>
-        </div>
-        
-        <!-- ModelScope Tab Content -->
-        <div id="modelscope" class="tab-content initial">
-            <div class="mb-10 text-center">
-                <p class="text-gray-600 text-lg max-w-2xl mx-auto">
-                    粘贴任何 ModelScope 模型 URL，获取由AI为您量身定制的智能服务
-                </p>
-            </div>
-            
-            <div class="coming-soon card p-8">
-                <h3>即将推出</h3>
-                <p>ModelScope 模型自动化构建功能正在开发中</p>
-            </div>
-        </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="border-t border-gray-200 bg-white">
-        <div class="main-container mx-auto px-4 py-4 text-center">
-            <p class="text-gray-600 text-sm">
-                &copy; 2025 启智自动化构建. 保留所有权利.
-            </p>
-        </div>
-    </footer>
-
-    <!-- Loading State -->
-    {% if loading %}
-    <div class="card p-8">
-        <div class="flex flex-col items-center space-y-4">
-            <div class="loader"></div>
-            <p class="text-lg font-medium text-gray-900">正在分析仓库并生成 Dockerfile...</p>
-            <p class="text-sm text-gray-600">这可能需要一些时间</p>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Streaming State -->
-    {% if streaming %}
-    <div id="streaming-container">
-        <div class="card p-6">
-            
-            <!-- Status Display -->
-            <div class="text-center mb-6">
-                <div class="loader mx-auto mb-4"></div>
-                <h2 class="text-xl font-bold text-gray-900 mb-2">正在自动化构建</h2>
-                <p id="status-message" class="text-gray-600">连接中...</p>
-            </div>
-
-            <!-- Progress Steps -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div id="step-clone" class="border border-gray-200 rounded p-4 transition-all duration-300">
-                    <div class="flex items-center">
-                        <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
-                            <span class="text-sm font-bold">1</span>
-                        </div>
-                        <span class="font-medium">克隆仓库</span>
-                    </div>
+            <!-- GitHub Tab Content -->
+            <div id="github" class="tab-content initial active">
+                <!-- Hero Section -->
+                <div class="mb-10 text-center">
+                    <p class="text-gray-600 text-lg max-w-2xl mx-auto">
+                        粘贴任何 GitHub 仓库 URL，获取由AI为您量身定制的智能服务
+                    </p>
                 </div>
-                <div id="step-analyze" class="border border-gray-200 rounded p-4 transition-all duration-300">
-                    <div class="flex items-center">
-                        <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
-                            <span class="text-sm font-bold">2</span>
-                        </div>
-                        <span class="font-medium">
-                                分析结构
-                                <span class="block text-xs text-gray-500 mt-1">todo 更好的代码分析</span>
-                            </span>
-                        </div>
+
+                <!-- Error Message -->
+                {% if error %}
+                <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                    {{ error }}
+                </div>
+                {% endif %}
+
+                <!-- Pre-filled URL notification -->
+                {% if pre_filled %}
+                <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span class="font-medium">太好了！我们已从 URL 自动检测到您的 GitHub 仓库。</span>
                     </div>
-                    <div id="step-generate" class="border border-gray-200 rounded p-4 transition-all duration-300">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
-                                <span class="text-sm font-bold">3</span>
+                    <p class="text-sm mt-1">您现在可以为此仓库生成 Dockerfile，或根据需要修改 URL。</p>
+                </div>
+                {% endif %}
+
+                <!-- Input Form -->
+                <div class="mb-8">
+                    <div class="card p-6">
+                        <form method="post" class="flex flex-col md:flex-row gap-4" onsubmit="prepareFormSubmit(event)">
+                            <div class="flex-1">
+                                <input 
+                                    type="url" 
+                                    name="repo_url" 
+                                    id="repo_url"
+                                    value="{{ repo_url }}"
+                                    placeholder="https://github.com/用户名/仓库名"
+                                    required
+                                    class="form-input w-full text-base"
+                                >
                             </div>
-                            <span class="font-medium">生成 Dockerfile
-                            <span class="block text-xs text-gray-500 mt-1">todo 参考启智的镜像仓库</span>
+                            <div class="md:w-auto">
+                                <button 
+                                    type="submit"
+                                    class="btn-primary py-3 px-6 text-base w-full"
+                                >
+                                    自动化构建
+                                </button>
+                            </div>
+                            <input type="hidden" name="additional_instructions_hidden" id="additional_instructions_hidden" value="">
+                            <input type="hidden" name="model" id="model_hidden" value="{{ current_model }}">
+                        </form>
+                        
+                        <!-- Examples and Additional instructions row -->
+                        <div class="mt-6 flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+                            <!-- Additional instructions checkbox -->
+                            <div class="flex-shrink-0 self-start md:self-center">
+                                <div class="flex items-center">
+                                    <input type="checkbox" 
+                                           id="show_instructions" 
+                                           onchange="toggleInstructions()"
+                                           class="w-4 h-4 text-[#4A90E2] bg-gray-100 border-gray-300 rounded focus:ring-[#4A90E2] focus:ring-2">
+                                    <label for="show_instructions" class="ml-2 text-gray-700">附加说明</label>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
-                                <span class="text-sm font-bold">4</span>
-                            </div>
-                            <span class="font-medium">构建镜像
-                            <span class="block text-xs text-gray-500 mt-1">todo 构建失败反思</span>
-                        </div>
-                    </div>
-                    <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
-                                <span class="text-sm font-bold text-gray-500">5</span>
-                            </div>
-                            <span class="font-medium text-gray-500">启智环境导入
-                            <span class="block text-xs text-gray-500 mt-1">代码/模型/数据</span>
-                        </div>
-                    </div>
-                    <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
-                                <span class="text-sm font-bold text-gray-500">6</span>
-                            </div>
-                            <span class="font-medium text-gray-500">生成验证代码</span>
-                        </div>
-                    </div>
-                    <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
-                                <span class="text-sm font-bold text-gray-500">7</span>
-                            </div>
-                            <span class="font-medium text-gray-500">自动验证环境</span>
-                        </div>
-                    </div>
-                    <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
-                                <span class="text-sm font-bold text-gray-500">8</span>
-                            </div>
-                            <span class="font-medium text-gray-500">启智环境交付</span>
+                        
+                        <!-- Additional instructions textarea (spans full width) -->
+                        <div id="instructions_container" class="hidden mt-4">
+                            <textarea 
+                                id="additional_instructions"
+                                name="additional_instructions"
+                                placeholder="例如，使用 Alpine Linux，包含特定工具，针对生产环境优化等"
+                                rows="3"
+                                class="form-input w-full text-sm"
+                            ></textarea>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Content Display Area -->
-                <div id="content-display-area" class="mt-6">
-                    <div class="border border-gray-200 rounded-lg p-4 bg-black resizable-container">
-                        <div id="content-display" class="font-mono text-green-400 text-sm whitespace-pre-wrap break-words"></div>
-                        <div class="resize-handle"></div>
+                <!-- Successful Builds Section - Moved back inside GitHub tab -->
+                {% if successful_builds and successful_builds|length > 0 %}
+                <div class="mb-8">
+                    <div class="card p-6">
+                        <h2 class="text-xl font-bold text-gray-900 mb-4">已构建成功的项目</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {% for build in successful_builds %}
+                            <a href="/builds/{{ build.repo_url | replace('https://github.com/', '') | replace('/', '_') }}" 
+                               class="build-item block border border-gray-200 rounded-lg p-4 hover:border-blue-300">
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <h3 class="font-medium text-gray-900 truncate">{{ build.result.project_name or build.result.repo_info.name if build.result.repo_info else 'Unknown Project' }}</h3>
+                                        <p class="text-sm text-gray-500 truncate mt-1">{{ build.repo_url }}</p>
+                                    </div>
+                                    <span class="inline-flex items-center text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-1"></span>
+                                        成功
+                                    </span>
+                                </div>
+                                <div class="mt-3 text-xs text-gray-500">
+                                    <div>{{ build.result.technology_stack or 'Unknown Stack' }}</div>
+                                    <div class="mt-2">{{ build.build_time[:19].replace('T', ' ') }}</div>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
-
+                {% endif %}
             </div>
-        </div>
+            
+            <!-- HuggingFace Tab Content -->
+            <div id="huggingface" class="tab-content initial">
+                <div class="mb-10 text-center">
+                    <p class="text-gray-600 text-lg max-w-2xl mx-auto">
+                        粘贴任何 HuggingFace 模型 URL，获取由AI为您量身定制的智能服务
+                    </p>
+                </div>
+                
+                <div class="coming-soon card p-8">
+                    <h3>即将推出</h3>
+                    <p>HuggingFace 模型自动化构建功能正在开发中</p>
+                </div>
+            </div>
+            
+            <!-- ModelScope Tab Content -->
+            <div id="modelscope" class="tab-content initial">
+                <div class="mb-10 text-center">
+                    <p class="text-gray-600 text-lg max-w-2xl mx-auto">
+                        粘贴任何 ModelScope 模型 URL，获取由AI为您量身定制的智能服务
+                    </p>
+                </div>
+                
+                <div class="coming-soon card p-8">
+                    <h3>即将推出</h3>
+                    <p>ModelScope 模型自动化构建功能正在开发中</p>
+                </div>
+            </div>
+        </main>
 
-        <!-- Results Container (hidden initially) -->
-        <div id="results-container" class="hidden">
-            <div class="card p-6 space-y-6">
-                <!-- Results content will be populated by JavaScript -->
+        <!-- Loading State -->
+        {% if loading %}
+        <div class="card p-8">
+            <div class="flex flex-col items-center space-y-4">
+                <div class="loader"></div>
+                <p class="text-lg font-medium text-gray-900">正在分析仓库并生成 Dockerfile...</p>
+                <p class="text-sm text-gray-600">这可能需要一些时间</p>
             </div>
         </div>
         {% endif %}
 
-        <!-- Results (for non-streaming requests) -->
-        {% if result %}
-        <div class="card p-6 space-y-6">
-            
-            <!-- Project Info -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="border border-gray-200 rounded p-4">
-                    <h3 class="font-medium text-gray-900 mb-1">项目</h3>
-                    <p class="text-sm text-gray-600">{{ result.project_name }}</p>
+        <!-- Streaming State -->
+        {% if streaming %}
+        <div id="streaming-container" class="main-container mx-auto px-4 py-8">
+            <div class="card p-6">
+                
+                <!-- Status Display -->
+                <div class="text-center mb-6">
+                    <div class="loader mx-auto mb-4"></div>
+                    <h2 class="text-xl font-bold text-gray-900 mb-2">正在自动化构建</h2>
+                    <p id="status-message" class="text-gray-600">连接中...</p>
                 </div>
-                <div class="border border-gray-200 rounded p-4">
-                    <h3 class="font-medium text-gray-900 mb-1">技术栈</h3>
-                    <p class="text-sm text-gray-600">{{ result.technology_stack }}</p>
-                </div>
-                <div class="border border-gray-200 rounded p-4">
-                    <h3 class="font-medium text-gray-900 mb-1">仓库大小</h3>
-                    <p class="text-sm text-gray-600">{{ result.repo_info.file_count }} 个文件 ({{ result.repo_info.size_mb }} MB)</p>
+
+                <!-- Progress Steps -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div id="step-clone" class="border border-gray-200 rounded p-4 transition-all duration-300">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
+                                <span class="text-sm font-bold">1</span>
+                            </div>
+                            <span class="font-medium">克隆仓库</span>
+                        </div>
+                    </div>
+                    <div id="step-analyze" class="border border-gray-200 rounded p-4 transition-all duration-300">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
+                                <span class="text-sm font-bold">2</span>
+                            </div>
+                            <span class="font-medium">
+                                    分析结构
+                                    <span class="block text-xs text-gray-500 mt-1">todo 更好的代码分析</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div id="step-generate" class="border border-gray-200 rounded p-4 transition-all duration-300">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
+                                    <span class="text-sm font-bold">3</span>
+                                </div>
+                                <span class="font-medium">生成 Dockerfile
+                                <span class="block text-xs text-gray-500 mt-1">todo 参考启智的镜像仓库</span>
+                            </div>
+                        </div>
+                        <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
+                                    <span class="text-sm font-bold">4</span>
+                                </div>
+                                <span class="font-medium">构建镜像
+                                <span class="block text-xs text-gray-500 mt-1">todo 构建失败反思</span>
+                            </div>
+                        </div>
+                        <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
+                                    <span class="text-sm font-bold text-gray-500">5</span>
+                                </div>
+                                <span class="font-medium text-gray-500">启智环境导入
+                                <span class="block text-xs text-gray-500 mt-1">代码/模型/数据</span>
+                            </div>
+                        </div>
+                        <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
+                                    <span class="text-sm font-bold text-gray-500">6</span>
+                                </div>
+                                <span class="font-medium text-gray-500">生成验证代码</span>
+                            </div>
+                        </div>
+                        <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
+                                    <span class="text-sm font-bold text-gray-500">7</span>
+                                </div>
+                                <span class="font-medium text-gray-500">自动验证环境</span>
+                            </div>
+                        </div>
+                        <div id="step-build" class="border border-gray-200 rounded p-4 transition-all duration-300">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center mr-3">
+                                    <span class="text-sm font-bold text-gray-500">8</span>
+                                </div>
+                                <span class="font-medium text-gray-500">启智环境交付</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Content Display Area -->
+                    <div id="content-display-area" class="mt-6">
+                        <div class="border border-gray-200 rounded-lg p-4 bg-black resizable-container">
+                            <div id="content-display" class="font-mono text-green-400 text-sm whitespace-pre-wrap break-words"></div>
+                            <div class="resize-handle"></div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
-            <!-- Dockerfile -->
-            <div>
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-lg font-medium text-gray-900">Dockerfile</h3>
-                    <div class="flex space-x-2">
+            <!-- Results Container (hidden initially) -->
+            <div id="results-container" class="hidden">
+                <div class="card p-6 space-y-6">
+                    <!-- Results content will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <footer class="border-t border-gray-200 bg-white">
+            <div class="main-container mx-auto px-4 py-4 text-center">
+                <p class="text-gray-600 text-sm">
+                    &copy; 2025 启智自动化构建. 保留所有权利.
+                </p>
+            </div>
+        </footer>
+
+        <!-- Results (for non-streaming requests) -->
+        {% if result %}
+        <div class="main-container mx-auto px-4 py-8">
+            <div class="card p-6 space-y-6">
+                
+                <!-- Project Info -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="border border-gray-200 rounded p-4">
+                        <h3 class="font-medium text-gray-900 mb-1">项目</h3>
+                        <p class="text-sm text-gray-600">{{ result.project_name }}</p>
+                    </div>
+                    <div class="border border-gray-200 rounded p-4">
+                        <h3 class="font-medium text-gray-900 mb-1">技术栈</h3>
+                        <p class="text-sm text-gray-600">{{ result.technology_stack }}</p>
+                    </div>
+                    <div class="border border-gray-200 rounded p-4">
+                        <h3 class="font-medium text-gray-900 mb-1">仓库大小</h3>
+                        <p class="text-sm text-gray-600">{{ result.repo_info.file_count }} 个文件 ({{ result.repo_info.size_mb }} MB)</p>
+                    </div>
+                </div>
+
+                <!-- Dockerfile -->
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-medium text-gray-900">Dockerfile</h3>
+                        <div class="flex space-x-2">
+                            <button 
+                                onclick="copyDockerfile()"
+                                class="btn-primary px-4 py-2 flex items-center gap-2 text-sm"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                </svg>
+                                复制 Dockerfile
+                            </button>
+                            <a href="/" class="btn-secondary px-4 py-2 text-sm">
+                                返回首页
+                            </a>
+                        </div>
+                    </div>
+                    <div class="border border-gray-200 rounded">
+                        <div class="monaco-container">
+                            <div id="dockerfile-editor"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Docker Compose (if available) -->
+                {% if result.docker_compose %}
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-medium text-gray-900">docker-compose.yml</h3>
                         <button 
-                            onclick="copyDockerfile()"
+                            onclick="copyCompose()"
                             class="btn-primary px-4 py-2 flex items-center gap-2 text-sm"
                         >
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                             </svg>
-                            复制 Dockerfile
+                            复制 Compose
                         </button>
-                        <a href="/" class="btn-secondary px-4 py-2 text-sm">
-                            返回首页
-                        </a>
                     </div>
-                </div>
-                <div class="border border-gray-200 rounded">
-                    <div class="monaco-container">
-                        <div id="dockerfile-editor"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Docker Compose (if available) -->
-            {% if result.docker_compose %}
-            <div>
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-lg font-medium text-gray-900">docker-compose.yml</h3>
-                    <button 
-                        onclick="copyCompose()"
-                        class="btn-primary px-4 py-2 flex items-center gap-2 text-sm"
-                    >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                        </svg>
-                        复制 Compose
-                    </button>
-                </div>
-                <div class="border border-gray-200 rounded">
-                    <div class="monaco-container-compose">
-                        <div id="compose-editor"></div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- Reasoning & Notes -->
-            {% if result.reasoning or result.additional_notes %}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {% if result.reasoning %}
-                <div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-3">基础镜像选择理由</h3>
-                    <div class="border border-gray-200 rounded p-4">
-                        <p class="text-sm text-gray-600">{{ result.reasoning }}</p>
+                    <div class="border border-gray-200 rounded">
+                        <div class="monaco-container-compose">
+                            <div id="compose-editor"></div>
+                        </div>
                     </div>
                 </div>
                 {% endif %}
-                
-                {% if result.additional_notes %}
-                <div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-3">附加说明</h3>
-                    <div class="border border-gray-200 rounded p-4">
-                        <p class="text-sm text-gray-600 whitespace-pre-wrap">{{ result.additional_notes }}</p>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-            {% endif %}
-            
-            <!-- Docker Image Build Info -->
-            {% if result.image_build %}
-            <div>
-                <h3 class="text-lg font-medium text-gray-900 mb-3">Docker 镜像构建</h3>
-                <div class="border border-gray-200 rounded p-4">
-                {% if result.image_build.success %}
-                    <div class="bg-green-50 border border-green-200 rounded p-3 mb-3">
-                        <p class="text-green-700 font-medium">{{ result.image_build.message }}</p>
-                    </div>
-                    <div class="mt-3">
-                        <h4 class="font-medium text-gray-700 mb-2">镜像标签:</h4>
-                        <div class="bg-gray-50 p-3 rounded font-mono text-sm break-words">
-                            {{ result.image_build.image_tag }}
-                        </div>
-                        <p class="mt-2 text-sm text-gray-600">您可以使用以下命令运行此镜像:</p>
-                        <div class="mt-1 bg-gray-800 text-green-400 p-3 rounded font-mono text-sm">
-                            docker run -p 8000:8000 {{ result.image_build.image_tag }}
-                        </div>
-                    </div>
-                {% else %}
-                    <div class="bg-red-50 border border-red-200 rounded p-3">
-                        <p class="text-red-700 font-medium">构建失败: {{ result.image_build.error }}</p>
-                    </div>
-                    
-                    {% if result.image_build.build_log %}
-                    <div class="mt-3">
-                        <h4 class="font-medium text-gray-700 mb-2">构建日志:</h4>
-                        <div class="bg-gray-800 text-red-400 p-3 rounded font-mono text-xs overflow-auto max-h-40">
-                            {{ result.image_build.build_log }}
+
+                <!-- Reasoning & Notes -->
+                {% if result.reasoning or result.additional_notes %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {% if result.reasoning %}
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-3">基础镜像选择理由</h3>
+                        <div class="border border-gray-200 rounded p-4">
+                            <p class="text-sm text-gray-600">{{ result.reasoning }}</p>
                         </div>
                     </div>
                     {% endif %}
                     
-                    <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                        <p class="text-blue-700 text-sm">
-                            <strong>提示:</strong> 构建失败可能是由于网络问题或Docker Hub镜像拉取问题导致的。
-                            您可以手动复制Dockerfile内容并使用以下命令构建:
-                        </p>
-                        <div class="mt-2 bg-gray-800 text-yellow-400 p-2 rounded font-mono text-xs">
-                            docker build --no-cache -t your-image-name .
+                    {% if result.additional_notes %}
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-3">附加说明</h3>
+                        <div class="border border-gray-200 rounded p-4">
+                            <p class="text-sm text-gray-600 whitespace-pre-wrap">{{ result.additional_notes }}</p>
                         </div>
                     </div>
-                {% endif %}
+                    {% endif %}
                 </div>
-            </div>
-            {% endif %}
+                {% endif %}
+                
+                <!-- Docker Image Build Info -->
+                {% if result.image_build %}
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-3">Docker 镜像构建</h3>
+                    <div class="border border-gray-200 rounded p-4">
+                    {% if result.image_build.success %}
+                        <div class="bg-green-50 border border-green-200 rounded p-3 mb-3">
+                            <p class="text-green-700 font-medium">{{ result.image_build.message }}</p>
+                        </div>
+                        <div class="mt-3">
+                            <h4 class="font-medium text-gray-700 mb-2">镜像标签:</h4>
+                            <div class="bg-gray-50 p-3 rounded font-mono text-sm break-words">
+                                {{ result.image_build.image_tag }}
+                            </div>
+                            <p class="mt-2 text-sm text-gray-600">您可以使用以下命令运行此镜像:</p>
+                            <div class="mt-1 bg-gray-800 text-green-400 p-3 rounded font-mono text-sm">
+                                docker run -p 8000:8000 {{ result.image_build.image_tag }}
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="bg-red-50 border border-red-200 rounded p-3">
+                            <p class="text-red-700 font-medium">构建失败: {{ result.image_build.error }}</p>
+                        </div>
+                        
+                        {% if result.image_build.build_log %}
+                        <div class="mt-3">
+                            <h4 class="font-medium text-gray-700 mb-2">构建日志:</h4>
+                            <div class="bg-gray-800 text-red-400 p-3 rounded font-mono text-xs overflow-auto max-h-40">
+                                {{ result.image_build.build_log }}
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                            <p class="text-blue-700 text-sm">
+                                <strong>提示:</strong> 构建失败可能是由于网络问题或Docker Hub镜像拉取问题导致的。
+                                您可以手动复制Dockerfile内容并使用以下命令构建:
+                            </p>
+                            <div class="mt-2 bg-gray-800 text-yellow-400 p-2 rounded font-mono text-xs">
+                                docker build --no-cache -t your-image-name .
+                            </div>
+                        </div>
+                    {% endif %}
+                    </div>
+                </div>
+                {% endif %}
 
+            </div>
         </div>
         {% endif %}
-    </main>
-
-    <!-- Footer -->
-    <footer class="border-t border-gray-200 mt-auto bg-white">
-    </footer>
+    </div>
 
     <script>
         // Tab switching function
@@ -1232,6 +1243,13 @@
         }
         
         function showStepContent(step, content) {
+            // 检查当前是否在GitHub标签页
+            const githubTab = document.getElementById('github');
+            if (!githubTab || !githubTab.classList.contains('active')) {
+                // 如果不在GitHub标签页，则不显示内容
+                return;
+            }
+            
             const contentDisplay = document.getElementById('content-display');
             if (contentDisplay) {
                 // 检查内容是否包含HTML标签
@@ -1258,6 +1276,13 @@
         
         function appendStreamingContent(content) {
             // This function is kept for backward compatibility
+            // 检查当前是否在GitHub标签页
+            const githubTab = document.getElementById('github');
+            if (!githubTab || !githubTab.classList.contains('active')) {
+                // 如果不在GitHub标签页，则不显示内容
+                return;
+            }
+            
             const contentDisplay = document.getElementById('content-display');
             if (contentDisplay) {
                 // 检查内容是否包含HTML标签
@@ -1284,6 +1309,13 @@
         
         function appendBuildLog(content) {
             // This function is kept for backward compatibility
+            // 检查当前是否在GitHub标签页
+            const githubTab = document.getElementById('github');
+            if (!githubTab || !githubTab.classList.contains('active')) {
+                // 如果不在GitHub标签页，则不显示内容
+                return;
+            }
+            
             const contentDisplay = document.getElementById('content-display');
             if (contentDisplay) {
                 // 检查内容是否包含HTML标签
@@ -1309,6 +1341,13 @@
         }
         
         function showError(error) {
+            // 检查当前是否在GitHub标签页
+            const githubTab = document.getElementById('github');
+            if (!githubTab || !githubTab.classList.contains('active')) {
+                // 如果不在GitHub标签页，则不显示内容
+                return;
+            }
+            
             const contentDisplay = document.getElementById('content-display');
             if (contentDisplay) {
                 const errorContent = '<span style="color: #FF0000; font-weight: bold;">❌ 错误: ' + error + '</span>';
@@ -1323,6 +1362,13 @@
         // 添加showComplete函数，用于展示生成的Dockerfile和相关信息
         function showComplete(result) {
             console.log('Showing complete result:', result);
+            
+            // 检查当前是否在GitHub标签页
+            const githubTab = document.getElementById('github');
+            if (!githubTab || !githubTab.classList.contains('active')) {
+                // 如果不在GitHub标签页，则不显示内容
+                return;
+            }
             
             // 隐藏加载动画和状态消息
             const loadingIndicator = document.getElementById('loading-indicator');

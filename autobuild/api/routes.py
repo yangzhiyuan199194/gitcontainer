@@ -289,6 +289,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         workflow = create_workflow()
         app_workflow = workflow.compile()
 
+        app_workflow.get_graph().print_ascii()
+
         # Initialize state
         from autobuild.services.workflow import WorkflowState
         initial_state = WorkflowState(
@@ -328,6 +330,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
         # Send final result - regardless of build success
         await ws_manager.send_complete("Generation complete!", final_result)
+
+        final_result["wiki_result"] = final_state["wiki_result"]
 
         # Save build record
         build_data = {

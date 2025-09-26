@@ -18,7 +18,7 @@ from autobuild.utils import get_websocket_manager
 logger = logging.getLogger(__name__)
 
 
-async def search_dockerfile(local_repo_path: str, summary: str, tree: str, content: str,
+async def search_dockerfile(local_repo_path: str, summary: str, tree: str, content: str,model:str,
                             ws_manager: Optional[Any] = None) -> Optional[str]:
     """
     Search for existing Dockerfile in the repository.
@@ -71,7 +71,7 @@ async def search_dockerfile(local_repo_path: str, summary: str, tree: str, conte
 
         # Use LLM to analyze and select the most appropriate Dockerfile
         selected_dockerfile = await _select_best_dockerfile(
-            dockerfile_contents, summary, tree, content, ws_manager
+            dockerfile_contents, summary, tree, content,model, ws_manager
         )
         return selected_dockerfile
 
@@ -80,7 +80,7 @@ async def search_dockerfile(local_repo_path: str, summary: str, tree: str, conte
         return None
 
 
-async def _select_best_dockerfile(dockerfile_contents: Dict[str, str], summary: str, tree: str, content: str,
+async def _select_best_dockerfile(dockerfile_contents: Dict[str, str], summary: str, tree: str, content: str,model:str,
                                  ws_manager: Optional[Any] = None) -> Optional[str]:
     """
     Use LLM to analyze and select the most appropriate Dockerfile.
@@ -133,8 +133,8 @@ async def _select_best_dockerfile(dockerfile_contents: Dict[str, str], summary: 
 
         # Call LLM for analysis
         result = await llm_client.call_llm(
+            model=model,
             messages=messages,
-            temperature=0.3,
             ws_manager=ws_manager
         )
         
@@ -176,7 +176,7 @@ async def _select_best_dockerfile(dockerfile_contents: Dict[str, str], summary: 
         return None
 
 
-async def gitingest_tool(local_repo_path: str, ws_manager: Optional[Any] = None) -> Dict[str, Any]:
+async def gitingest_tool(local_repo_path: str, model:str, ws_manager: Optional[Any] = None) -> Dict[str, Any]:
     """
     Analyze a local GitHub repository using gitingest and return structured results.
     
@@ -236,7 +236,7 @@ async def gitingest_tool(local_repo_path: str, ws_manager: Optional[Any] = None)
 
         # Search for existing Dockerfile
         git_dockerfile = await search_dockerfile(
-            local_repo_path, summary, tree, content, ws_manager
+            local_repo_path, summary, tree, content, model,ws_manager
         )
 
         logger.info("git_dockerfile: %s", git_dockerfile)

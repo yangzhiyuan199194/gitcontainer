@@ -1,21 +1,19 @@
 """
-Tools module for Gitcontainer application.
+Tools package for autobuild application.
 
-This module contains various tools that can be used by AI agents
-for Dockerfile generation and related tasks.
+This package contains various tools used by the autobuild workflow.
 """
 
-from .gitingest import gitingest_tool, gitingest_function
-from .git_operations import clone_repo_tool, git_operations_function
-from .create_container import create_container_tool, create_container_function
+from .git_operations import clone_repo_tool
+from .gitingest import gitingest_tool
+from .create_container import create_container_tool
 from .build_docker_image import build_docker_image
+from .wiki_generator import wiki_generator_tool
 
 __all__ = [
-    'gitingest_tool',
-    'gitingest_function', 
-    'clone_repo_tool',
-    'git_operations_function',
-    'create_container_tool',
-    'create_container_function',
-    'build_docker_image'
+    "clone_repo_tool",
+    "gitingest_tool",
+    "create_container_tool",
+    "build_docker_image",
+    "wiki_generator_tool"
 ]

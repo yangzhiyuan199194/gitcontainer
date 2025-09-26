@@ -19,7 +19,8 @@ from autobuild.tools import (
     clone_repo_tool,
     gitingest_tool,
     create_container_tool,
-    build_docker_image
+    build_docker_image,
+    wiki_generator_tool
 )
 from autobuild.utils import get_websocket_manager
 from autobuild.utils.build_history import build_history_manager
@@ -48,6 +49,8 @@ class WorkflowState(TypedDict):
     ws_log_file_path: Optional[str]
     websocket: Optional[Any]
     messages: List[Any]
+    # Wiki generation fields
+    wiki_result: Dict[str, Any]
 
 
 # 定义工具函数
@@ -85,17 +88,10 @@ async def analyze_repo(state: WorkflowState) -> WorkflowState:
     
     logger.info("分析Agent开始工作")
     
-    # 克隆仓库
-    clone_result = await clone_repo_tool(state["repo_url"], ws_manager=ws_manager)
-    state["clone_result"] = clone_result
-    
-    if not clone_result["success"]:
-        if websocket:
-            await ws_manager.send_phase_end("[分析阶段结束]", "normal")
-        return state
-    
+    clone_result = state["clone_result"]
+
     # 分析仓库
-    analysis_result = await gitingest_tool(clone_result["local_path"], ws_manager=ws_manager)
+    analysis_result = await gitingest_tool(clone_result["local_path"],state["model"], ws_manager=ws_manager)
     state["analysis_result"] = analysis_result
     
     if websocket:
@@ -216,6 +212,49 @@ async def build_image(state: WorkflowState) -> WorkflowState:
             logger.warning("WebSocket disconnected during final build messages")
     
     state["build_result"] = build_result
+    return state
+
+
+async def generate_wiki(state: WorkflowState) -> WorkflowState:
+    """生成Wiki文档工具"""
+    websocket = state.get("websocket")
+    ws_log_file_path = state.get("ws_log_file_path", None)
+    ws_manager = get_websocket_manager(websocket, ws_log_file_path)
+    
+    if websocket:
+        await ws_manager.send_status("📚 Generating Wiki documentation...")
+        await ws_manager.send_phase_start("[Wiki生成阶段开始]", "normal")
+        await ws_manager.send_chunk("🔍 Starting Wiki generation process...\n")
+    
+    logger.info("Wiki生成Agent开始工作")
+    
+    # Extract owner and repo from repo_url
+    repo_url = state["repo_url"]
+    if "github.com/" in repo_url:
+        owner_repo = repo_url.split("github.com/")[-1].rstrip("/")
+        if owner_repo.endswith(".git"):
+            owner_repo = owner_repo[:-4]
+        parts = owner_repo.split("/")
+        if len(parts) >= 2:
+            owner, repo = parts[0], parts[1]
+        else:
+            owner, repo = "unknown", "unknown"
+    else:
+        owner, repo = "unknown", "unknown"
+    
+    # Generate wiki
+    wiki_result = await wiki_generator_tool(
+        local_repo_path=state["clone_result"]["local_path"],
+        owner=owner,
+        repo=repo,
+        model=state["model"],
+        ws_manager=ws_manager
+    )
+    
+    if websocket:
+        await ws_manager.send_phase_end("[Wiki生成阶段结束]", "normal")
+    
+    state["wiki_result"] = wiki_result
     return state
 
 
@@ -514,17 +553,21 @@ def create_workflow() -> StateGraph:
     workflow.add_node("analyze", analyze_repo)
     workflow.add_node("generate", generate_dockerfile)
     workflow.add_node("build", build_image)
+    workflow.add_node("wiki", generate_wiki)
     workflow.add_node("reflect", reflect_on_failure)
     workflow.add_node("improve", improve_dockerfile)
     
     # 设置入口点
     workflow.set_entry_point("clone")
-    
-    # 设置正常流程
+
+    # 设置wiki流程
+    workflow.add_edge("clone", "wiki")
+
+    # 设置docker正常流程
     workflow.add_edge("clone", "analyze")
     workflow.add_edge("analyze", "generate")
     workflow.add_edge("generate", "build")
-    
+
     # 设置条件边
     workflow.add_conditional_edges(
         "build",
@@ -536,6 +579,7 @@ def create_workflow() -> StateGraph:
         }
     )
     
+
     # 设置反思流程
     workflow.add_edge("reflect", "improve")
     workflow.add_conditional_edges(
@@ -546,5 +590,7 @@ def create_workflow() -> StateGraph:
             "end": END
         }
     )
-    
+    # 添加从wiki到结束的边
+    workflow.add_edge("wiki", END)
+
     return workflow
