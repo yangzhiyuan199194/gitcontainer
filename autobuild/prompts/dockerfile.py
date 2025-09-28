@@ -46,15 +46,16 @@ Please generate a Dockerfile that:
 4. Sets up the correct working directory structure
 5. Exposes necessary ports based on the application type
 6. Includes health checks where appropriate for the application type
-7. Follows Docker best practices:
+7. If the user does not explicitly specify the Dockerfile and the project relies on the python environment, conda should be used first to build the user-dependent environment
+8. Follows Docker best practices:
    - Use multi-stage builds when beneficial to reduce image size
    - Combine related RUN commands to minimize layers
    - Properly handle package manager caches (e.g., apt-get clean, rm -rf /var/lib/apt/lists/*)
    - Use COPY instead of ADD unless specifically needed
-   - Set proper user permissions for security (do not run as root if possible)
-8. Handles environment variables and configuration appropriately
-9. Ensures all commands are compatible with the chosen base image
-10. Avoids common build errors:
+   - Make sure the file you want to copy exists in the corresponding directory
+9. Handles environment variables and configuration appropriately
+10. Ensures all commands are compatible with the chosen base image
+11. Avoids common build errors:
     - Always use specific versions for base images (avoid 'latest')
     - Use a definite existing base image and do not fabricate non-existent images at will
     - Properly escape special characters in commands
