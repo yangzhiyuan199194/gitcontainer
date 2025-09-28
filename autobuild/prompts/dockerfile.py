@@ -46,7 +46,8 @@ Please generate a Dockerfile that:
 4. Sets up the correct working directory structure
 5. Exposes necessary ports based on the application type
 6. Includes health checks where appropriate for the application type
-7. If the user does not explicitly specify the Dockerfile and the project relies on the python environment, conda should be used first to build the user-dependent environment，avoid using the default Anaconda channel that requires a ToS and instead use the community-maintained conda-forge
+7. If the user does not explicitly specify the Dockerfile and the project relies on the python environment, conda should be used first to build the user-dependent environment，avoid using the default Anaconda channel that requires a ToS and instead use the conda suggests explicitly specifying -c conda-forge
+
 
 8. Follows Docker best practices:
    - Use multi-stage builds when beneficial to reduce image size
