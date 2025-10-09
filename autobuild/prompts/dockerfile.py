@@ -47,7 +47,7 @@ Please generate a Dockerfile that:
 5. Exposes necessary ports based on the application type
 6. Includes health checks where appropriate for the application type
 7. If the user does not explicitly specify the Dockerfile and the project relies on the python environment, conda should be used first to build the user-dependent environment，avoid using the default Anaconda channel that requires a ToS and instead use the conda suggests explicitly specifying --override-channels -c conda-forge
-8. Use the base image pre-installed devel version with CUDA Toolkit first. To ensure compatibility, please run pip install... Previously, explicitly install numpy 1.x version by running pip install 'numpy<2'
+8. Use the base image pre-installed devel version with CUDA Toolkit first, it is recommended to use cuda 12.4 or above. To ensure compatibility, please run pip install... Previously, explicitly install numpy 1.x version by running pip install 'numpy<2'
 9. Follows Docker best practices:
    - Use multi-stage builds when beneficial to reduce image size
    - Combine related RUN commands to minimize layers
