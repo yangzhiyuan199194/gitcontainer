@@ -331,7 +331,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         # Send final result - regardless of build success
         await ws_manager.send_complete("Generation complete!", final_result)
 
-        if final_state["wiki_result"]:
+        if "wiki_result" in final_state and final_state["wiki_result"]:
             final_result["wiki_result"] = final_state["wiki_result"]
 
         # Save build record
