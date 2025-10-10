@@ -511,14 +511,13 @@ def create_workflow() -> StateGraph:
     # 设置docker正常流程
     workflow.add_edge("analyze", "generate")
     workflow.add_edge("generate", "build")
-    workflow.add_edge("build", "wiki")
 
     # 设置条件边
     workflow.add_conditional_edges(
         "build",
         should_continue,
         {
-            "success": END,
+            "success": "wiki",
             "max_iterations_reached": END,
             "reflect": "reflect"
         }
@@ -534,5 +533,8 @@ def create_workflow() -> StateGraph:
             "end": END
         }
     )
+
+    # 只有构建成功时才执行wiki节点
+    workflow.add_edge("wiki", END)
 
     return workflow
