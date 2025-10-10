@@ -110,8 +110,8 @@ CURRENT DOCKERFILE:
 BUILD ERROR MESSAGE:
 {error_message}
 
-BUILD LOG (last 2000 characters):
-{build_log[-2000:] if build_log else "No build log available"}
+BUILD LOG (last 500 characters):
+{build_log[-500:] if build_log else "No build log available"}
 
 PROJECT SUMMARY:
 {gitingest_summary}

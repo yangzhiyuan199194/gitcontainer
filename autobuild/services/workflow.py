@@ -506,11 +506,12 @@ def create_workflow() -> StateGraph:
 
     # 设置并行流程 - clone完成后同时执行analyze和wiki
     workflow.add_edge("clone", "analyze")
-    workflow.add_edge("clone", "wiki")
+    # workflow.add_edge("clone", "wiki")
 
     # 设置docker正常流程
     workflow.add_edge("analyze", "generate")
     workflow.add_edge("generate", "build")
+    workflow.add_edge("build", "wiki")
 
     # 设置条件边
     workflow.add_conditional_edges(
