@@ -39,6 +39,7 @@ class LangGraphWorkflowState(TypedDict):
     repo_url: Annotated[str, "append"]
     additional_instructions: str
     model: Optional[str]
+    generate_wiki: bool  # Add generate_wiki flag
     clone_result: Dict[str, Any]
     analysis_result: Dict[str, Any]
     dockerfile_result: Dict[str, Any]
@@ -235,7 +236,14 @@ async def generate_dockerfile(state: LangGraphWorkflowState) -> Dict[str, Any]:
             ws_manager=ws_manager,
             stream=stream_support
         )
-        return {"dockerfile_result": dockerfile_result}
+        
+        # 确保返回的结果中包含verification_code
+        result = {"dockerfile_result": dockerfile_result}
+        # 如果dockerfile_result中有verification_code，也单独保存一份以便前端访问
+        if dockerfile_result.get("success") and "verification_code" in dockerfile_result:
+            result["verification_code"] = dockerfile_result["verification_code"]
+        
+        return result
     except Exception as e:
         # Return a failed result instead of raising exception
         logger.error(f"Dockerfile generation failed: {e}")
@@ -811,12 +819,48 @@ def create_langgraph_workflow() -> StateGraph:
                 logger.error(f"Error in safe_should_continue wrapper: {str(e)}")
                 return "end"
 
-        # Set conditional edges with safer decision function
+        # Define a new decision function that considers generate_wiki flag
+        async def should_continue_with_wiki(state):
+            """Decision function that considers both build success and generate_wiki flag"""
+            result = await safe_should_continue_async(state)
+            # If build was successful, check generate_wiki flag
+            if result == "success":
+                generate_wiki = state.get("generate_wiki", True)  # Default to True if not specified
+                if generate_wiki:
+                    return "wiki"
+                else:
+                    return END
+            return result
+        
+        def safe_should_continue_with_wiki(state):
+            """Sync wrapper for should_continue_with_wiki"""
+            try:
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
+                if loop.is_running():
+                    if loop._thread_id != asyncio.current_thread().ident:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                    future = asyncio.create_task(should_continue_with_wiki(state))
+                    return loop.run_until_complete(future)
+                else:
+                    return loop.run_until_complete(should_continue_with_wiki(state))
+            except Exception as e:
+                logger.error(f"Error in safe_should_continue_with_wiki: {str(e)}")
+                return END
+        
+        # Set conditional edges with the new decision function
         workflow.add_conditional_edges(
             "build",
-            safe_should_continue,
+            safe_should_continue_with_wiki,
             {
-                "success": "wiki",
+                "wiki": "wiki",  # Only go to wiki if generate_wiki is True
+                "success": END,  # Legacy support, should not be reached
                 "max_iterations_reached": END,
                 "reflect": "reflect",
                 "early_failure": END,

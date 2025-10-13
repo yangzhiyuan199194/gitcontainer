@@ -29,7 +29,7 @@ def create_dockerfile_prompt(
     else:
         dockerfile_info_section = "\nTHE PROJECT DOES NOT CONTAIN A DOCKERFILE CURRENTLY.\n"
 
-    return f"""Based on the following repository analysis, generate a comprehensive and production-ready Dockerfile that will successfully build without errors.
+    return '''Based on the following repository analysis, generate a comprehensive and production-ready Dockerfile that will successfully build without errors.
 
 PROJECT SUMMARY:
 {gitingest_summary}{dockerfile_info_section}
@@ -66,20 +66,38 @@ Please generate a Dockerfile that:
     - Install build dependencies before runtime dependencies where applicable
     - Properly configure the entrypoint and command for the application type
 
+Additionally, please generate a verification code snippet that demonstrates how to:
+1. Test the core functionality of the application within the Docker container
+2. Verify that the application's key features are working correctly
+3. Perform relevant API calls, CLI commands, or functional tests specific to this project
+4. Include proper error handling and meaningful output verification
+
+The verification code should be:
+- Highly specific to the cloned project's actual code and functionality
+- Executable directly within the generated Docker image
+- Focused on validating the application works as expected, not just that Docker is running
+- Tailored to the project's technology stack and architecture
+- Include comments explaining each test step and expected outcomes
+
 If you detect multiple services or a complex architecture, provide a main Dockerfile for the primary service and suggest a docker-compose.yml structure.
 
 IMPORTANT: Respond ONLY with a valid JSON object. Do not include any explanations, or code blocks. The response must be parseable JSON.
 
 Required JSON format:
 {{
-  "dockerfile": "FROM python:3.9-slim\\nWORKDIR /app\\nCOPY . .\\nRUN pip install -r requirements.txt\\nEXPOSE 8000\\nCMD [\\"python\\", \\"app.py\\"]",
+  "dockerfile": "FROM python:3.9-slim\nWORKDIR /app\nCOPY . .\nRUN pip install -r requirements.txt\nEXPOSE 8000\nCMD [\"python\", \"app.py\"]",
   "base_image_reasoning": "Explanation of why you chose the base image, including why it will successfully build",
   "technology_stack": "Detected technologies and frameworks",
   "port_recommendations": ["8000", "80"],
   "additional_notes": "Any important setup or deployment notes, including potential build issues and how to avoid them",
-  "docker_compose_suggestion": "Optional docker-compose.yml content if multiple services detected"
-}}"""
-
+  "docker_compose_suggestion": "Optional docker-compose.yml content if multiple services detected",
+  "verification_code": {{
+    "language": "bash",
+    "code": "#!/bin/bash\n# Function to test application functionality\ntest_application_functionality() {{\n  # Check if application files exist\n  if [ ! -f 'main.py' ]; then\n    echo \"Error: Application files not found\"\n    return 1\n  fi\n  \n  echo \"Testing core application functionality...\"\n  \n  # Example 1: Run application entry point\n  python -m application.test --verify-installation\n  \n  # Example 2: Run built-in tests if available\n  if [ -d 'tests' ]; then\n    python -m pytest tests/\n  fi\n  \n  echo \"Application tests completed\"\n}}\n\ntest_application_functionality",
+    "description": "Functionality test script for the application",
+    "dependencies": ["python"]
+  }}
+}}'''.format(gitingest_summary=gitingest_summary, gitingest_tree=gitingest_tree, truncated_content=truncated_content, additional_instructions_section=additional_instructions_section, dockerfile_info_section=dockerfile_info_section)
 
 def create_reflection_prompt(
     dockerfile_content: str,
@@ -139,8 +157,8 @@ Required JSON format:
     "Specific issue 2 in the Dockerfile"
   ],
   "suggestions": [
-    "Detailed suggestion 1 for fixing the Dockerfile",
-    "Detailed suggestion 2 for fixing the Dockerfile"
+    "Detailed suggestion 1",
+    "Detailed suggestion 2"
   ],
-  "revised_dockerfile": "FROM python:3.9-slim\\nWORKDIR /app\\nCOPY . .\\nRUN pip install -r requirements.txt\\nEXPOSE 8000\\nCMD [\\"python\\", \\"app.py\\"]"
+  "revised_dockerfile": "FROM python:3.9-slim\nWORKDIR /app\nCOPY . .\nRUN pip install -r requirements.txt\nEXPOSE 8000\nCMD [\"python\", \"app.py\"]"
 }}"""

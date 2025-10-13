@@ -474,6 +474,48 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- AI Verification Code Tab -->
+                    <div id="tab-content-code" class="tab-content" style="display: none;">
+                        <div class="card p-6">
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-lg font-medium text-gray-900">AI验证代码</h3>
+                                <button 
+                                    onclick="copyVerificationCode()"
+                                    class="btn-primary px-4 py-2 flex items-center gap-2 text-sm"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                    </svg>
+                                    复制验证代码
+                                </button>
+                            </div>
+                            {% if build_record.result.verification_code %}
+                            <div class="mb-4">
+                                <p class="text-gray-600 mb-2">代码描述: {{ build_record.result.verification_code.description or '无描述' }}</p>
+                                <p class="text-gray-600 mb-2">语言: {{ build_record.result.verification_code.language or 'unknown' }}</p>
+                                {% if build_record.result.verification_code.dependencies %}
+                                <p class="text-gray-600 mb-2">依赖: {{ build_record.result.verification_code.dependencies | join(', ') }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-4 bg-black">
+                                <div class="mb-2 flex items-center">
+                                    <div class="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                                    <div class="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
+                                    <div class="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                                    <span class="ml-2 text-gray-400">root@container:~#</span>
+                                </div>
+                                <pre class="font-mono text-green-400 text-sm whitespace-pre-wrap break-words" id="verification-code-display">
+{{ build_record.result.verification_code.code }}
+                                </pre>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-8 text-gray-500">
+                                <p>暂无验证代码</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -595,6 +637,27 @@
         function copyDockerfile() {
             const dockerfileText = document.getElementById('dockerfile-display').textContent;
             navigator.clipboard.writeText(dockerfileText).then(() => {
+                // Show success feedback
+                const button = event.target.closest('button');
+                const originalText = button.innerHTML;
+                button.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    已复制
+                `;
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+        
+        // Copy Verification Code to clipboard
+        function copyVerificationCode() {
+            const codeText = document.getElementById('verification-code-display').textContent;
+            navigator.clipboard.writeText(codeText).then(() => {
                 // Show success feedback
                 const button = event.target.closest('button');
                 const originalText = button.innerHTML;

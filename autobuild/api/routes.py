@@ -203,7 +203,8 @@ async def generate_dockerfile_endpoint(
         request: Request,
         repo_url: str = Form(...),
         additional_instructions_hidden: str = Form(""),
-        model: str = Form(None)
+        model: str = Form(None),
+        generate_wiki: str = Form(None)
 ):
     """
     Redirect to streaming page for Dockerfile generation.
@@ -224,7 +225,7 @@ async def generate_dockerfile_endpoint(
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=f"/builds/{repo_hash}", status_code=303)
 
-    # Store the repo URL, additional instructions, and model in a session
+    # Store the repo URL, additional instructions, model, and generate_wiki flag in a session
     session_id = session_manager.create_session({
         "repo_url": repo_url,
         "additional_instructions": (
@@ -233,6 +234,7 @@ async def generate_dockerfile_endpoint(
             else ""
         ),
         "model": model,
+        "generate_wiki": generate_wiki == "on"  # Convert checkbox value to boolean
     })
 
     # Get available models
@@ -286,6 +288,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         from autobuild.utils import get_websocket_manager
         ws_manager = get_websocket_manager(websocket, ws_log_file_path)
 
+        # Get generate_wiki flag from session data, default to True if not present
+        generate_wiki = session_data.get("generate_wiki", True)
+        
         # Use enhanced LangGraph workflow with automatic message forwarding
         workflow = create_langgraph_workflow()
         app_workflow = workflow.compile()
@@ -304,6 +309,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             repo_url=repo_url,
             additional_instructions=additional_instructions,
             model=model,
+            generate_wiki=generate_wiki,  # Pass generate_wiki flag to workflow state
             clone_result={},
             analysis_result={},
             dockerfile_result={},

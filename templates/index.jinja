@@ -423,16 +423,41 @@
                                     class="form-input w-full text-base"
                                 >
                             </div>
-                            <div class="md:w-auto">
+                            <div class="md:w-auto flex flex-col gap-2">
                                 <button 
                                     type="submit"
                                     class="btn-primary py-3 px-6 text-base w-full"
                                 >
                                     自动化构建
                                 </button>
+                                <div class="flex items-center justify-center">
+                                    <input type="checkbox" 
+                                           id="generate_wiki"
+                                           name="generate_wiki"
+                                           class="w-4 h-4 text-[#4A90E2] bg-gray-100 border-gray-300 rounded focus:ring-[#4A90E2] focus:ring-2"
+                                           checked
+                                    >
+                                    <label for="generate_wiki" class="ml-2 text-sm text-gray-700">生成Wiki</label>
+                                </div>
                             </div>
                             <input type="hidden" name="additional_instructions_hidden" id="additional_instructions_hidden" value="">
                             <input type="hidden" name="model" id="model_hidden" value="{{ current_model }}">
+<script>
+    // 页面加载时恢复缓存的状态
+    document.addEventListener('DOMContentLoaded', function() {
+        const generateWikiCheckbox = document.getElementById('generate_wiki');
+        const cachedState = localStorage.getItem('generateWikiState');
+        
+        if (cachedState !== null) {
+            generateWikiCheckbox.checked = cachedState === 'true';
+        }
+        
+        // 监听复选框状态变化并缓存
+        generateWikiCheckbox.addEventListener('change', function() {
+            localStorage.setItem('generateWikiState', this.checked.toString());
+        });
+    });
+</script>
                         </form>
                         
                         <!-- Examples and Additional instructions row -->

@@ -89,7 +89,13 @@ async def _handle_dockerfile_response(response_content: str) -> Dict[str, Any]:
                 "technology_stack": "Could not parse detailed analysis",
                 "port_recommendations": [],
                 "additional_notes": "Response was not in expected JSON format",
-                "docker_compose_suggestion": None
+                "docker_compose_suggestion": None,
+                "verification_code": {
+                    "language": "bash",
+                    "code": "#!/bin/bash\n# Build and run the Docker image\ndocker build -t my-app .\ndocker run -p 8000:8000 my-app\n",
+                    "description": "Basic verification script",
+                    "dependencies": ["docker"]
+                }
             }
 
     return {
@@ -100,6 +106,7 @@ async def _handle_dockerfile_response(response_content: str) -> Dict[str, Any]:
         "port_recommendations": dockerfile_data.get("port_recommendations", []),
         "additional_notes": dockerfile_data.get("additional_notes", ""),
         "docker_compose_suggestion": dockerfile_data.get("docker_compose_suggestion"),
+        "verification_code": dockerfile_data.get("verification_code", {})
     }
 
 
