@@ -785,12 +785,24 @@ def create_langgraph_workflow() -> StateGraph:
             """Sync wrapper that handles the async decision node"""
             try:
                 import asyncio
-                # Run the async function in the current event loop
-                loop = asyncio.get_event_loop()
+                # Try to get the current event loop, create one if none exists
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    # Create a new event loop for this thread if none exists
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
                 if loop.is_running():
-                    # If loop is running, use create_task and wait for it
+                    # If loop is running, we can't use run_until_complete directly
+                    # Instead, use a new loop for this operation
+                    if loop._thread_id != asyncio.current_thread().ident:
+                        # If current thread doesn't own the loop, create a new one
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                    
+                    # Use a new task in the existing loop
                     future = asyncio.create_task(safe_should_continue_async(state))
-                    # Wait for the task to complete (blocking but necessary here)
                     return loop.run_until_complete(future)
                 else:
                     # If loop is not running, run it directly
@@ -830,12 +842,24 @@ def create_langgraph_workflow() -> StateGraph:
             """Sync wrapper that handles the async decision node"""
             try:
                 import asyncio
-                # Run the async function in the current event loop
-                loop = asyncio.get_event_loop()
+                # Try to get the current event loop, create one if none exists
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    # Create a new event loop for this thread if none exists
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
                 if loop.is_running():
-                    # If loop is running, use create_task and wait for it
+                    # If loop is running, we can't use run_until_complete directly
+                    # Instead, use a new loop for this operation
+                    if loop._thread_id != asyncio.current_thread().ident:
+                        # If current thread doesn't own the loop, create a new one
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                    
+                    # Use a new task in the existing loop
                     future = asyncio.create_task(safe_should_retry_async(state))
-                    # Wait for the task to complete (blocking but necessary here)
                     return loop.run_until_complete(future)
                 else:
                     # If loop is not running, run it directly
