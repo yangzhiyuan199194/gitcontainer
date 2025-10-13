@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 
 from autobuild.core.config import Settings
 from autobuild.services.workflow import create_workflow
+from autobuild.services.langgraph_workflow import create_langgraph_workflow, LangGraphWorkflowState
 from autobuild.utils.session_manager import SessionManager
 from autobuild.utils.build_history import build_history_manager
 
@@ -285,15 +286,21 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         from autobuild.utils import get_websocket_manager
         ws_manager = get_websocket_manager(websocket, ws_log_file_path)
 
-        # Compile workflow
-        workflow = create_workflow()
+        # Use enhanced LangGraph workflow with automatic message forwarding
+        workflow = create_langgraph_workflow()
         app_workflow = workflow.compile()
 
         app_workflow.get_graph().print_ascii()
+        
+        # Send workflow metadata to frontend immediately after connection
+        try:
+            await ws_manager.send_workflow_metadata(workflow.metadata)
+            await ws_manager.send_status("🚀 工作流启动中...")
+        except Exception as metadata_error:
+            logger.error(f"Error sending initial workflow metadata: {str(metadata_error)}")
 
-        # Initialize state
-        from autobuild.services.workflow import WorkflowState
-        initial_state = WorkflowState(
+        # Initialize enhanced state with auto message handling
+        initial_state = LangGraphWorkflowState(
             repo_url=repo_url,
             additional_instructions=additional_instructions,
             model=model,
@@ -307,13 +314,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             final_result={},
             websocket=websocket,
             ws_log_file_path=ws_log_file_path,
-            messages=[]
+            messages=[],
+            current_node=None,
+            node_status={},
+            wiki_result={}
         )
 
         # Run workflow
+        logger.info(f"Starting workflow execution for repository: {repo_url}")
         final_state = await app_workflow.ainvoke(initial_state)
+        logger.info(f"Workflow execution completed for repository: {repo_url}")
 
-        # Construct final result - send results regardless of build success
+        # Construct enhanced final result with workflow state information
         final_result = {
             "project_name": final_state["dockerfile_result"].get("project_name", ""),
             "technology_stack": final_state["dockerfile_result"].get("technology_stack", ""),
@@ -325,10 +337,19 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 "name": final_state["clone_result"].get("repo_name", ""),
                 "size_mb": final_state["clone_result"].get("repo_size_mb", 0),
                 "file_count": final_state["clone_result"].get("file_count", 0)
+            },
+            # Add workflow execution information for frontend
+            "workflow_info": {
+                "current_node": final_state.get("current_node"),
+                "node_status": final_state.get("node_status", {}),
+                "iteration": final_state.get("iteration", 0),
+                "max_iterations": final_state.get("max_iterations", 0),
+                "success": final_state["build_result"].get("success", False)
             }
         }
 
         # Send final result - regardless of build success
+        logger.info(f"Sending final result to frontend for repository: {repo_url}")
         await ws_manager.send_complete("Generation complete!", final_result)
 
         if "wiki_result" in final_state and final_state["wiki_result"]:

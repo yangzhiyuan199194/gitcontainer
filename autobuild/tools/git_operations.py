@@ -117,16 +117,113 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", ws_manager
             time.sleep(0.5)
         
         # Clone the repository using git command
-        clone_command = f"git clone --recursive {github_url} {local_path}"
-        if ws_manager:
-            await ws_manager.send_status(f"📥 Cloning repository to: {local_path}")
+        # First try normal clone
+        clone_commands = [
+            f"git clone --recursive {github_url} {local_path}",  # Normal clone
+            f"git clone --recursive -c http.sslVerify=false {github_url} {local_path}"  # Clone without SSL verification
+        ]
         
-        # Run the git clone command with real-time output
-        process = await asyncio.create_subprocess_shell(
-            clone_command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+        success = False
+        last_error = ""
+        
+        for attempt, clone_command in enumerate(clone_commands):
+            if ws_manager:
+                if attempt == 0:
+                    await ws_manager.send_status(f"📥 Cloning repository to: {local_path}")
+                else:
+                    await ws_manager.send_status(f"🔄 Retrying clone without SSL verification...")
+            
+            # Run the git clone command with real-time output
+            process = await asyncio.create_subprocess_shell(
+                clone_command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            # Stream output in real-time
+            stdout_lines = []
+            stderr_lines = []
+            
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                line_str = line.decode('utf-8').strip()
+                if line_str:
+                    stdout_lines.append(line_str)
+                    await ws_manager.send_chunk(f"[CLONE] {line_str}\n")
+            
+            # Also read stderr
+            while True:
+                line = await process.stderr.readline()
+                if not line:
+                    break
+                line_str = line.decode('utf-8').strip()
+                stderr_lines.append(line_str)
+                if line_str:
+                    await ws_manager.send_chunk(f"[CLONE] {line_str}\n")
+            
+            await process.wait()
+            
+            if process.returncode == 0:
+                success = True
+                break
+            else:
+                last_error = "\n".join(stderr_lines) if stderr_lines else "Clone failed"
+                if ws_manager:
+                    await ws_manager.send_status(f"⚠️  Clone attempt {attempt + 1} failed. {last_error}")
+        
+        if not success:
+            # Try HTTP fallback if HTTPS is failing
+            if "https://" in github_url:
+                http_url = github_url.replace("https://", "http://")
+                if ws_manager:
+                    await ws_manager.send_status(f"🔄 Retrying with HTTP instead of HTTPS...")
+                
+                clone_command = f"git clone --recursive {http_url} {local_path}"
+                process = await asyncio.create_subprocess_shell(
+                    clone_command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                stdout_lines = []
+                stderr_lines = []
+                
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
+                    line_str = line.decode('utf-8').strip()
+                    if line_str:
+                        stdout_lines.append(line_str)
+                        await ws_manager.send_chunk(f"[CLONE] {line_str}\n")
+                
+                while True:
+                    line = await process.stderr.readline()
+                    if not line:
+                        break
+                    line_str = line.decode('utf-8').strip()
+                    stderr_lines.append(line_str)
+                    if line_str:
+                        await ws_manager.send_chunk(f"[CLONE] {line_str}\n")
+                
+                await process.wait()
+                
+                if process.returncode == 0:
+                    success = True
+                else:
+                    last_error = "\n".join(stderr_lines) if stderr_lines else "Clone failed"
+            
+            if not success:
+                return {
+                    "success": False,
+                    "error": last_error,
+                    "url": github_url,
+                    "troubleshooting": "SSL连接错误。可能是网络问题、防火墙限制或证书验证问题。请检查网络连接或尝试使用VPN。"
+                }
+        
+        stdout_lines = []  # Reinitialize for success case
         
         # Stream output in real-time
         while True:
@@ -150,29 +247,21 @@ async def clone_repo_tool(github_url: str, target_dir: str = "repos", ws_manager
         
         await process.wait()
         
-        if process.returncode == 0:
-            # Get repository info
-            repo_size = get_directory_size(local_path)
-            file_count = count_files(local_path)
-            
-            await ws_manager.send_chunk(f"✅ Successfully cloned {owner}/{repo_name}\n")
-            
-            return {
-                "success": True,
-                "local_path": local_path,
-                "repo_name": f"{owner}/{repo_name}",
-                "repo_size_mb": round(repo_size / (1024 * 1024), 2),
-                "file_count": file_count,
-                "url": github_url,
-                "message": f"Successfully cloned {owner}/{repo_name} to {local_path}"
-            }
-        else:
-            error_message = "\n".join(stderr_lines) if stderr_lines else "Clone failed"
-            return {
-                "success": False,
-                "error": error_message,
-                "url": github_url
-            }
+        # Get repository info
+        repo_size = get_directory_size(local_path)
+        file_count = count_files(local_path)
+        
+        await ws_manager.send_chunk(f"✅ Successfully cloned {owner}/{repo_name}\n")
+        
+        return {
+            "success": True,
+            "local_path": local_path,
+            "repo_name": f"{owner}/{repo_name}",
+            "repo_size_mb": round(repo_size / (1024 * 1024), 2),
+            "file_count": file_count,
+            "url": github_url,
+            "message": f"Successfully cloned {owner}/{repo_name} to {local_path}"
+        }
             
     except Exception as e:
         return {

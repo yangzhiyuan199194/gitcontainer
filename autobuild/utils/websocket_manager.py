@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Dict
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,10 @@ class MessageType(Enum):
     PHASE_END = "phase_end"
     ERROR = "error"
     COMPLETE = "complete"
+    NODE_START = "node_start"
+    NODE_UPDATE = "node_update"
+    NODE_COMPLETE = "node_complete"
+    WORKFLOW_METADATA = "workflow_metadata"
 
 
 class WebSocketManager:
@@ -139,6 +143,94 @@ class WebSocketManager:
     async def send_phase_end(self, content: str, phase_type: str = "normal") -> bool:
         """Send phase end message."""
         return await self.send_message(MessageType.PHASE_END, content, phase_type=phase_type)
+    
+    async def send_node_start(self, node_name: str, node_metadata: Optional[Dict[str, Any]] = None) -> bool:
+        """Send LangGraph node start message."""
+        kwargs = {"node_id": node_name}
+        if node_metadata:
+            kwargs["node_metadata"] = node_metadata
+        return await self.send_message(MessageType.NODE_START, f"Starting node: {node_name}", **kwargs)
+    
+    async def send_node_update(self, node_name: str, progress: float = 0.0, status: str = "running") -> bool:
+        """Send LangGraph node progress update."""
+        return await self.send_message(
+            MessageType.NODE_UPDATE, 
+            f"Progress: {progress*100:.1f}%", 
+            node_id=node_name, 
+            progress=progress,
+            status=status
+        )
+    
+    async def send_node_complete(self, node_name: str, result: Optional[Dict[str, Any]] = None) -> bool:
+        """Send LangGraph node completion message."""
+        kwargs = {"node_id": node_name}
+        if result:
+            kwargs["result"] = result
+        success = result.get("success", False) if result else False
+        status_text = "completed" if success else "failed"
+        return await self.send_message(MessageType.NODE_COMPLETE, f"Node {node_name} {status_text}", **kwargs)
+    
+    async def send_workflow_metadata(self, metadata: Dict[str, Any]) -> bool:
+        """Send workflow metadata for frontend visualization."""
+        logger.info(f"Received metadata for processing: {metadata.keys()}")
+        
+        # 转换metadata结构，使其符合前端期望的格式
+        # 从metadata.nodes中提取节点列表，每个节点包含id和name
+        nodes = []
+        if 'nodes' in metadata:
+            logger.info(f"Processing {len(metadata['nodes'])} nodes")
+            for node_id, node_info in metadata['nodes'].items():
+                # 确保节点对象包含必要的id和name属性
+                node = {
+                    'id': node_id,
+                    'name': node_info.get('label', node_id)
+                }
+                # 添加其他可能有用的属性
+                if isinstance(node_info, dict):
+                    for key, value in node_info.items():
+                        if key not in node:
+                            node[key] = value
+                nodes.append(node)
+                logger.info(f"Added node to metadata: {node['id']} - {node['name']}")
+        else:
+            logger.warning("No nodes found in metadata")
+        
+        # 构建消息结构，确保类型与前端期望的一致
+        edges = metadata.get('edges', [])
+        logger.info(f"Processing {len(edges)} edges")
+        
+        # 直接使用字符串类型而不是枚举值，确保前端能正确识别
+        message_data = {
+            "type": "WORKFLOW_METADATA",  # 直接使用字符串而不是枚举值
+            "content": "",
+            "timestamp": asyncio.get_event_loop().time(),
+            "nodes": nodes,
+            "edges": edges
+        }
+        
+        # 直接发送构建好的消息
+        if self.websocket is None:
+            logger.error("WebSocket is None, cannot send workflow metadata")
+            return False
+            
+        try:
+            # Check if WebSocket is still open
+            if hasattr(self.websocket, 'client_state') and self.websocket.client_state.name != 'CONNECTED':
+                logger.warning(f"WebSocket is not connected. State: {self.websocket.client_state}")
+                return False
+                
+            # Serialize message to JSON
+            message_json = json.dumps(message_data, ensure_ascii=False)
+            logger.info(f"Sending workflow metadata with {len(nodes)} nodes and {len(edges)} edges")
+            logger.info(f"Message data preview: {json.dumps({k: v[:3] if isinstance(v, list) else v for k, v in message_data.items()}, ensure_ascii=False)}")
+            
+            # Send message via WebSocket
+            await self.websocket.send_text(message_json)
+            logger.info("Workflow metadata sent successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Error sending workflow metadata: {str(e)}", exc_info=True)
+            return False
     
     async def send_error(self, content: str) -> bool:
         """Send error message."""
