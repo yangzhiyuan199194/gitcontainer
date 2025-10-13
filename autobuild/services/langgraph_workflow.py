@@ -383,7 +383,7 @@ async def build_docker(state: LangGraphWorkflowState) -> Dict[str, Any]:
 
 
 @auto_message_handler
-async def generate_wiki_node(state: LangGraphWorkflowState) -> Dict[str, Any]:
+async def generate_wiki(state: LangGraphWorkflowState) -> Dict[str, Any]:
     """Generate Wiki documentation node"""
     ws_manager = state.get("ws_manager")
     
@@ -755,7 +755,7 @@ def create_langgraph_workflow() -> StateGraph:
         workflow.add_node("analyze", analyze_repository)
         workflow.add_node("generate", generate_dockerfile)
         workflow.add_node("build", build_docker)
-        workflow.add_node("wiki", generate_wiki_node)
+        workflow.add_node("wiki", generate_wiki)
         workflow.add_node("reflect", reflect_on_failure)
         workflow.add_node("improve", improve_dockerfile)
 
