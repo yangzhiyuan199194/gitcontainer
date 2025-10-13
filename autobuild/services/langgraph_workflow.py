@@ -239,9 +239,6 @@ async def generate_dockerfile(state: LangGraphWorkflowState) -> Dict[str, Any]:
         
         # 确保返回的结果中包含verification_code
         result = {"dockerfile_result": dockerfile_result}
-        # 如果dockerfile_result中有verification_code，也单独保存一份以便前端访问
-        if dockerfile_result.get("success") and "verification_code" in dockerfile_result:
-            result["verification_code"] = dockerfile_result["verification_code"]
         
         return result
     except Exception as e:

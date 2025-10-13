@@ -339,7 +339,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             "base_image_reasoning": final_state["dockerfile_result"].get("base_image_reasoning", ""),
             "additional_notes": final_state["dockerfile_result"].get("additional_notes", ""),
             # 添加验证代码到最终结果中
-            "verification_code": final_state.get("verification_code", ""),
+            "verification_code": final_state["dockerfile_result"].get("verification_code", ""),
             "image_build": final_state["build_result"],
             "repo_info": {
                 "name": final_state["clone_result"].get("repo_name", ""),
