@@ -829,7 +829,7 @@ def create_langgraph_workflow() -> StateGraph:
                 if generate_wiki:
                     return "wiki"
                 else:
-                    return END
+                    return "end"
             return result
         
         def safe_should_continue_with_wiki(state):
@@ -852,7 +852,7 @@ def create_langgraph_workflow() -> StateGraph:
                     return loop.run_until_complete(should_continue_with_wiki(state))
             except Exception as e:
                 logger.error(f"Error in safe_should_continue_with_wiki: {str(e)}")
-                return END
+                return "end"
         
         # Set conditional edges with the new decision function
         workflow.add_conditional_edges(
