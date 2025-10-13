@@ -768,9 +768,10 @@ def create_langgraph_workflow() -> StateGraph:
         workflow.add_edge("generate", "build")
 
         # Enhanced conditional edges with error handling
-        def safe_should_continue(state):
+        async def safe_should_continue_async(state):
+            """Async wrapper for should_continue that properly awaits the async function"""
             try:
-                return should_continue(state)
+                return await should_continue(state)
             except Exception as e:
                 # Log error and return safe default
                 logger.error(f"Error in should_continue decision: {str(e)}")
@@ -778,6 +779,24 @@ def create_langgraph_workflow() -> StateGraph:
                 if ws_manager:
                     import asyncio
                     asyncio.create_task(ws_manager.send_error(f"决策逻辑错误: {str(e)}"))
+                return "end"
+        
+        def safe_should_continue(state):
+            """Sync wrapper that handles the async decision node"""
+            try:
+                import asyncio
+                # Run the async function in the current event loop
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If loop is running, use create_task and wait for it
+                    future = asyncio.create_task(safe_should_continue_async(state))
+                    # Wait for the task to complete (blocking but necessary here)
+                    return loop.run_until_complete(future)
+                else:
+                    # If loop is not running, run it directly
+                    return loop.run_until_complete(safe_should_continue_async(state))
+            except Exception as e:
+                logger.error(f"Error in safe_should_continue wrapper: {str(e)}")
                 return "end"
 
         # Set conditional edges with safer decision function
@@ -794,9 +813,10 @@ def create_langgraph_workflow() -> StateGraph:
         )
 
         # Enhanced reflection flow with error handling
-        def safe_should_retry(state):
+        async def safe_should_retry_async(state):
+            """Async wrapper for should_retry that properly awaits the async function"""
             try:
-                return should_retry(state)
+                return await should_retry(state)
             except Exception as e:
                 # Log error and return safe default
                 logger.error(f"Error in should_retry decision: {str(e)}")
@@ -804,6 +824,24 @@ def create_langgraph_workflow() -> StateGraph:
                 if ws_manager:
                     import asyncio
                     asyncio.create_task(ws_manager.send_error(f"重试决策逻辑错误: {str(e)}"))
+                return "end"
+        
+        def safe_should_retry(state):
+            """Sync wrapper that handles the async decision node"""
+            try:
+                import asyncio
+                # Run the async function in the current event loop
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If loop is running, use create_task and wait for it
+                    future = asyncio.create_task(safe_should_retry_async(state))
+                    # Wait for the task to complete (blocking but necessary here)
+                    return loop.run_until_complete(future)
+                else:
+                    # If loop is not running, run it directly
+                    return loop.run_until_complete(safe_should_retry_async(state))
+            except Exception as e:
+                logger.error(f"Error in safe_should_retry wrapper: {str(e)}")
                 return "end"
 
         # Set reflection flow with safer decision function
