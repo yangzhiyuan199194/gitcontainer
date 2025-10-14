@@ -340,6 +340,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             "additional_notes": final_state["dockerfile_result"].get("additional_notes", ""),
             # 添加验证代码到最终结果中
             "verification_code": final_state["dockerfile_result"].get("verification_code", ""),
+            # 添加运行资源规格到最终结果中
+            "resource_requirements": final_state["dockerfile_result"].get("resource_requirements", {}),
             "image_build": final_state["build_result"],
             "repo_info": {
                 "name": final_state["clone_result"].get("repo_name", ""),

@@ -348,7 +348,7 @@
                             Wiki 文档
                         </button>
                         <button onclick="switchTab('docker')" id="tab-docker" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-                            Dockerfile & 构建日志
+                            AI镜像构建
                         </button>
                         <button onclick="switchTab('code')" id="tab-code" class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                             AI验证代码
@@ -512,6 +512,58 @@
                             {% else %}
                             <div class="text-center py-8 text-gray-500">
                                 <p>暂无验证代码</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- AI Resource Requirements Tab -->
+                    <div id="tab-content-resource" class="tab-content" style="display: none;">
+                        <div class="card p-6">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">AI资源规格</h3>
+                            {% if build_record.result.resource_requirements %}
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- 最小资源规格 -->
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <h4 class="text-md font-medium text-gray-800 mb-3">最小运行资源规格</h4>
+                                    <div class="space-y-3">
+                                        <div>
+                                            <p class="text-sm text-gray-600">CPU核数</p>
+                                            <p class="font-medium">{{ build_record.result.resource_requirements.minimal.cpu_cores or 'N/A' }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm text-gray-600">内存</p>
+                                            <p class="font-medium">{{ build_record.result.resource_requirements.minimal.memory_gb or 'N/A' }} GB</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm text-gray-600">GPU显卡数</p>
+                                            <p class="font-medium">{{ build_record.result.resource_requirements.minimal.gpu_count | default('N/A') }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 推荐资源规格 -->
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <h4 class="text-md font-medium text-gray-800 mb-3">推荐运行资源规格</h4>
+                                    <div class="space-y-3">
+                                        <div>
+                                            <p class="text-sm text-gray-600">CPU核数</p>
+                                            <p class="font-medium">{{ build_record.result.resource_requirements.recommended.cpu_cores or 'N/A' }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm text-gray-600">内存</p>
+                                            <p class="font-medium">{{ build_record.result.resource_requirements.recommended.memory_gb or 'N/A' }} GB</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm text-gray-600">GPU显卡数</p>
+                                            <p class="font-medium">{{ build_record.result.resource_requirements.recommended.gpu_count | default('N/A') }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-8 text-gray-500">
+                                <p>暂无资源规格信息</p>
                             </div>
                             {% endif %}
                         </div>

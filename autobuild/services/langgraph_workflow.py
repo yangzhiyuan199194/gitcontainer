@@ -239,7 +239,7 @@ async def generate_dockerfile(state: LangGraphWorkflowState) -> Dict[str, Any]:
         
         # 确保返回的结果中包含verification_code
         result = {"dockerfile_result": dockerfile_result}
-        
+
         return result
     except Exception as e:
         # Return a failed result instead of raising exception

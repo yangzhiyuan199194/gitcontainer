@@ -67,6 +67,17 @@ Please generate a Dockerfile that:
     - Properly configure the entrypoint and command for the application type
 
 Additionally, please generate a verification code snippet that demonstrates how to:
+
+Also, please specify the resource requirements for running this application in the container:
+1. Minimal resource specifications required for basic functionality
+2. Recommended resource specifications for optimal performance
+
+Each resource specification should include:
+- CPU cores required
+- Memory required (in GB)
+- GPU count required (0 if not needed)
+
+
 1. Test the core functionality of the application within the Docker container
 2. Verify that the application's key features are working correctly
 3. Perform relevant API calls, CLI commands, or functional tests specific to this project
@@ -96,6 +107,18 @@ Required JSON format:
     "code": "#!/bin/bash\n# Function to test application functionality\ntest_application_functionality() {{\n  # Check if application files exist\n  if [ ! -f 'main.py' ]; then\n    echo \"Error: Application files not found\"\n    return 1\n  fi\n  \n  echo \"Testing core application functionality...\"\n  \n  # Example 1: Run application entry point\n  python -m application.test --verify-installation\n  \n  # Example 2: Run built-in tests if available\n  if [ -d 'tests' ]; then\n    python -m pytest tests/\n  fi\n  \n  echo \"Application tests completed\"\n}}\n\ntest_application_functionality",
     "description": "Functionality test script for the application",
     "dependencies": ["python"]
+  }},
+  "resource_requirements": {{
+    "minimal": {{
+      "cpu_cores": 1,
+      "memory_gb": 2,
+      "gpu_count": 0
+    }},
+    "recommended": {{
+      "cpu_cores": 4,
+      "memory_gb": 8,
+      "gpu_count": 1
+    }}
   }}
 }}'''.format(gitingest_summary=gitingest_summary, gitingest_tree=gitingest_tree, truncated_content=truncated_content, additional_instructions_section=additional_instructions_section, dockerfile_info_section=dockerfile_info_section)
 

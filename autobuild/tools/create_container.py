@@ -95,6 +95,18 @@ async def _handle_dockerfile_response(response_content: str) -> Dict[str, Any]:
                     "code": "#!/bin/bash\n# Build and run the Docker image\ndocker build -t my-app .\ndocker run -p 8000:8000 my-app\n",
                     "description": "Basic verification script",
                     "dependencies": ["docker"]
+                },
+                "resource_requirements": {
+                    "minimal": {
+                        "cpu_cores": 1,
+                        "memory_gb": 2,
+                        "gpu_count": 0
+                    },
+                    "recommended": {
+                        "cpu_cores": 2,
+                        "memory_gb": 4,
+                        "gpu_count": 0
+                    }
                 }
             }
 
@@ -106,7 +118,19 @@ async def _handle_dockerfile_response(response_content: str) -> Dict[str, Any]:
         "port_recommendations": dockerfile_data.get("port_recommendations", []),
         "additional_notes": dockerfile_data.get("additional_notes", ""),
         "docker_compose_suggestion": dockerfile_data.get("docker_compose_suggestion"),
-        "verification_code": dockerfile_data.get("verification_code", {})
+        "verification_code": dockerfile_data.get("verification_code", {}),
+        "resource_requirements": dockerfile_data.get("resource_requirements", {
+            "minimal": {
+                "cpu_cores": 1,
+                "memory_gb": 2,
+                "gpu_count": 0
+            },
+            "recommended": {
+                "cpu_cores": 2,
+                "memory_gb": 4,
+                "gpu_count": 0
+            }
+        })
     }
 
 
