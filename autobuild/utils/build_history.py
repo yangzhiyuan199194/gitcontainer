@@ -19,19 +19,21 @@ class BuildHistoryManager:
         """Initialize build history manager."""
         self.history_dir = Path(history_dir)
         self.history_dir.mkdir(exist_ok=True)
+        # 确保logs目录存在
+        (self.history_dir / "logs").mkdir(exist_ok=True)
     
     def _get_repo_hash(self, repo_url: str) -> str:
         """
-        Generate a hash for the repository URL to use as identifier.
+        Generate a readable name from repository URL to use as identifier.
         
         Args:
             repo_url (str): Repository URL
             
         Returns:
-            str: Hash of the repository URL
+            str: Readable name based on repository URL
         """
-        # 使用SHA256算法以匹配实际文件名
-        return hashlib.sha256(repo_url.encode()).hexdigest()
+        # 使用GitHub URL转换为可读名称
+        return repo_url.replace('https://github.com/', '').replace('http://github.com/', '').replace('/', '_')
     
     def _get_build_path(self, repo_url: str) -> Path:
         """

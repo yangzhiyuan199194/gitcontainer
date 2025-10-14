@@ -77,27 +77,26 @@ async def home(request: Request):
     })
 
 
-@router.get("/builds/{repo_hash}", response_class=HTMLResponse)
-async def build_detail(request: Request, repo_hash: str):
+@router.get("/builds/{repo_name}", response_class=HTMLResponse)
+async def build_detail(request: Request, repo_name: str):
     """
     Build detail page showing build logs and results.
     
     Args:
         request (Request): FastAPI request object
-        repo_hash (str): Repository hash
+        repo_name (str): Repository name (derived from GitHub URL)
         
     Returns:
         TemplateResponse: Rendered build detail page
     """
-    # Find the build record by hash
+    # Find the build record by repo name
     build_records = build_history_manager.get_all_build_records()
     build_record = None
 
     for record in build_records:
-        # 使用与build_history_manager中相同的哈希方法 (SHA256)
         record_identifier = record["repo_url"].replace('https://github.com/', '').replace('http://github.com/',
                                                                                           '').replace('/', '_')
-        if record_identifier == repo_hash:
+        if record_identifier == repo_name:
             build_record = record
             break
 
@@ -174,9 +173,9 @@ async def dynamic_github_route(request: Request, path: str):
     # Check if this repo has already been built successfully
     if build_history_manager.repo_already_built_successfully(github_url):
         # Redirect to build detail page
-        repo_hash = hashlib.sha256(github_url.encode()).hexdigest()
+        repo_hash = github_url.replace('https://github.com/', '').replace('http://github.com/', '').replace('/', '_')
         from fastapi.responses import RedirectResponse
-        return RedirectResponse(url=f"/builds/{repo_hash}")
+        return RedirectResponse(url=f"/builds/{repo_name}")
 
     # Get available models from environment variable
     available_models = settings.get_available_models()
@@ -221,9 +220,9 @@ async def generate_dockerfile_endpoint(
     # Check if this repo has already been built successfully
     if build_history_manager.repo_already_built_successfully(repo_url):
         # Redirect to build detail page
-        repo_hash = hashlib.sha256(repo_url.encode()).hexdigest()
+        repo_name = repo_url.replace('https://github.com/', '').replace('http://github.com/', '').replace('/', '_')
         from fastapi.responses import RedirectResponse
-        return RedirectResponse(url=f"/builds/{repo_hash}", status_code=303)
+        return RedirectResponse(url=f"/builds/{repo_name}", status_code=303)
 
     # Store the repo URL, additional instructions, model, and generate_wiki flag in a session
     session_id = session_manager.create_session({
@@ -280,9 +279,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         additional_instructions = session_data.get("additional_instructions", "")
         model = session_data.get("model", None)
 
-        # Create log file path
-        repo_hash = hashlib.sha256(repo_url.encode()).hexdigest()
-        ws_log_file_path = f"build_history/logs/{repo_hash}.log"
+        # Create log file path using GitHub URL transformation
+        repo_name = repo_url.replace('https://github.com/', '').replace('http://github.com/', '').replace('/', '_')
+        ws_log_file_path = f"build_history/logs/{repo_name}.log"
 
         # Initialize WebSocket manager with log file
         from autobuild.utils import get_websocket_manager
