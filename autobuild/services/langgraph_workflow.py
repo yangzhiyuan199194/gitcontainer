@@ -413,7 +413,7 @@ async def test_env(state: LangGraphWorkflowState) -> Dict[str, Any]:
         # if not test_command:
         #     test_command = ["/bin/sh", "-c", "echo 'Running basic environment test' && echo 'Test completed successfully'"]
 
-        test_command = ["/bin/sh", "-c", "echo 'Running basic environment test' && echo 'Test completed successfully'"]
+        test_command = ["/bin/sh", "-c", "echo 'Running basic environment test' && sleep 10 && echo 'Test completed successfully'"]
         
         # Send test start message
         if ws_manager:
@@ -824,7 +824,61 @@ def create_langgraph_workflow() -> StateGraph:
         workflow.add_edge("clone", "analyze")
         workflow.add_edge("analyze", "generate")
         workflow.add_edge("generate", "build")
-        workflow.add_edge("build", "test")
+        
+        # Create decision function for build result
+        async def decide_after_build(state):
+            """Decision node: determine next step after build based on success/failure"""
+            ws_manager = state.get("ws_manager")
+            build_result = state.get("build_result", {})
+            
+            if ws_manager:
+                await ws_manager.send_node_update("Decision: Build Result", 1.0, "evaluating")
+            
+            # Build success -> test
+            if build_result.get("success"):
+                if ws_manager:
+                    await ws_manager.send_status("✅ 构建成功，准备进行测试")
+                    await ws_manager.send_node_complete("Decision: Build Result", {"decision": "test"})
+                return "test"
+            # Build failed -> reflect
+            else:
+                if ws_manager:
+                    await ws_manager.send_status("❌ 构建失败，进入反思阶段")
+                    await ws_manager.send_node_complete("Decision: Build Result", {"decision": "reflect"})
+                return "reflect"
+        
+        def safe_decide_after_build(state):
+            """Sync wrapper for decide_after_build"""
+            try:
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
+                if loop.is_running():
+                    if loop._thread_id != asyncio.current_thread().ident:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                    future = asyncio.create_task(decide_after_build(state))
+                    return loop.run_until_complete(future)
+                else:
+                    return loop.run_until_complete(decide_after_build(state))
+            except Exception as e:
+                logger.error(f"Error in safe_decide_after_build: {str(e)}")
+                return "end"
+        
+        # Add conditional edge after build
+        workflow.add_conditional_edges(
+            "build",
+            safe_decide_after_build,
+            {
+                "test": "test",
+                "reflect": "reflect",
+                "end": END
+            }
+        )
 
         # Enhanced conditional edges with error handling
         async def safe_should_continue_async(state):

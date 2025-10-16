@@ -155,11 +155,13 @@
         .workflow-step:not(:last-child)::after {
             content: '→';
             position: absolute;
-            right: -1.5rem;
+            right: -1rem;
             top: 50%;
             transform: translateY(-50%);
             color: #d1d5db;
             font-size: 1rem;
+            z-index: 10;
+            background-color: transparent;
         }
         
         /* 响应式处理 */
