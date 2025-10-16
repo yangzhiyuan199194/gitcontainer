@@ -196,6 +196,7 @@ cython_debug/
 hosting/
 
 .idea
+.kube
 
 proxy
 examples

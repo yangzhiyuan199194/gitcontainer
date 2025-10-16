@@ -16,7 +16,6 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from autobuild.core.config import Settings
-from autobuild.services.workflow import create_workflow
 from autobuild.services.langgraph_workflow import create_langgraph_workflow, LangGraphWorkflowState
 from autobuild.utils.session_manager import SessionManager
 from autobuild.utils.build_history import build_history_manager
