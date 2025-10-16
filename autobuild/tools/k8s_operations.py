@@ -185,34 +185,26 @@ class K8sOperations:
             # First, wait for the pod to be running
             await self.wait_for_pod_running(name, namespace)
             
-            # Stream logs
-            while True:
-                try:
-                    # Get log stream
-                    logs_stream = await asyncio.to_thread(
-                        self.core_v1_api.read_namespaced_pod_log,
-                        name=name,
-                        namespace=namespace,
-                        container=container,
-                        follow=follow,
-                        _preload_content=False
-                    )
-                    
-                    # Process log chunks
-                    for line in logs_stream:
-                        if isinstance(line, bytes):
-                            line = line.decode('utf-8')
-                        yield line.rstrip('\n')
-                    
-                    # If not following, break
-                    if not follow:
-                        break
-                    
-                except client.exceptions.ApiException as e:
-                    if e.status == 404:
-                        logger.warning(f"Pod {name} not found")
-                        break
-                    raise
+            # Get log stream (移除了无限循环)
+            logs_stream = await asyncio.to_thread(
+                self.core_v1_api.read_namespaced_pod_log,
+                name=name,
+                namespace=namespace,
+                container=container,
+                follow=follow,
+                _preload_content=False
+            )
+            
+            # Process log chunks
+            for line in logs_stream:
+                if isinstance(line, bytes):
+                    line = line.decode('utf-8')
+                yield line.rstrip('\n')
+                
+        except client.exceptions.ApiException as e:
+            if e.status == 404:
+                logger.warning(f"Pod {name} not found")
+            raise
         except Exception as e:
             logger.error(f"Error streaming logs from pod {name}: {e}")
             yield f"ERROR: {str(e)}"
