@@ -1,4 +1,5 @@
 openai-agents
+kubernetes
 python-dotenv 
 gitingest
 fastapi

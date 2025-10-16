@@ -44,6 +44,7 @@ class LangGraphWorkflowState(TypedDict):
     analysis_result: Dict[str, Any]
     dockerfile_result: Dict[str, Any]
     build_result: Dict[str, Any]
+    test_result: Dict[str, Any]  # Add test_result field
     reflection_result: Dict[str, Any]
     iteration: int
     max_iterations: int
@@ -364,6 +365,78 @@ async def build_docker(state: LangGraphWorkflowState) -> Dict[str, Any]:
                 "build_logs": error_msg
             }
         }
+@auto_message_handler
+async def test_env(state: LangGraphWorkflowState) -> Dict[str, Any]:
+    """Test ENV node - Run tests in Kubernetes cluster"""
+    ws_manager = state.get("ws_manager")
+    
+    try:
+        # Check if we have a successful build result
+        build_result = state.get("build_result", {})
+        if not build_result.get("success"):
+            error_msg = "无法进行测试：镜像构建失败"
+            if ws_manager:
+                await ws_manager.send_error(error_msg)
+            return {"test_result": {"success": False, "error": error_msg}}
+        
+        # Get the built image from build result
+        image = build_result.get("image_tag", "")
+        if not image:
+            error_msg = "无法进行测试：找不到构建的镜像"
+            if ws_manager:
+                await ws_manager.send_error(error_msg)
+            return {"test_result": {"success": False, "error": error_msg}}
+        
+        # Import k8s operations
+        from autobuild.tools.k8s_operations import run_test_in_k8s
+        
+        # Determine test command based on repository type (can be enhanced)
+        test_command = None
+        
+        # # Check if we have repository analysis
+        # analysis_result = state.get("analysis_result", {})
+        # if analysis_result:
+        #     # You can enhance this logic to determine appropriate test commands
+        #     # based on the repository analysis results
+        #     summary = analysis_result.get("summary", "").lower()
+        #     if "python" in summary:
+        #         # Python project detection
+        #         test_command = ["/bin/sh", "-c", "pip install -e . && pytest || echo 'No tests found'"]
+        #     elif "node" in summary or "javascript" in summary or "typescript" in summary:
+        #         # Node.js project detection
+        #         test_command = ["/bin/sh", "-c", "npm install && npm test || echo 'No tests found'"]
+        #     elif "golang" in summary:
+        #         # Go project detection
+        #         test_command = ["/bin/sh", "-c", "go test ./... || echo 'No tests found'"]
+        
+        # # Default test command if none detected
+        # if not test_command:
+        #     test_command = ["/bin/sh", "-c", "echo 'Running basic environment test' && echo 'Test completed successfully'"]
+
+        test_command = ["/bin/sh", "-c", "echo 'Running basic environment test' && echo 'Test completed successfully'"]
+        
+        # Send test start message
+        if ws_manager:
+            await ws_manager.send_build_log(f"🧪 开始在Kubernetes中测试镜像: {image}\n")
+            await ws_manager.send_build_log(f"📋 测试命令: {test_command}\n")
+        
+        # Run test in Kubernetes
+        test_result = await run_test_in_k8s(
+            image=image,
+            test_command=test_command,
+            ws_manager=ws_manager
+        )
+        
+        # Update node status and return result
+        return {"test_result": test_result}
+        
+    except Exception as e:
+        error_msg = f"测试环境执行时出错: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        if ws_manager:
+            await ws_manager.send_error(error_msg)
+        return {"test_result": {"success": False, "error": error_msg}}
+
 
 
 @auto_message_handler
@@ -739,6 +812,7 @@ def create_langgraph_workflow() -> StateGraph:
         workflow.add_node("analyze", analyze_repository)
         workflow.add_node("generate", generate_dockerfile)
         workflow.add_node("build", build_docker)
+        workflow.add_node("test", test_env)
         workflow.add_node("wiki", generate_wiki)
         workflow.add_node("reflect", reflect_on_failure)
         workflow.add_node("improve", improve_dockerfile)
@@ -750,6 +824,7 @@ def create_langgraph_workflow() -> StateGraph:
         workflow.add_edge("clone", "analyze")
         workflow.add_edge("analyze", "generate")
         workflow.add_edge("generate", "build")
+        workflow.add_edge("build", "test")
 
         # Enhanced conditional edges with error handling
         async def safe_should_continue_async(state):
@@ -797,15 +872,30 @@ def create_langgraph_workflow() -> StateGraph:
 
         # Define a new decision function that considers generate_wiki flag
         async def should_continue_with_wiki(state):
-            """Decision function that considers both build success and generate_wiki flag"""
-            result = await safe_should_continue_async(state)
-            # If build was successful, check generate_wiki flag
-            if result == "success":
+            """Decision function that considers both test success and generate_wiki flag"""
+            # First check test_result status
+            test_result = state.get("test_result", {})
+            ws_manager = state.get("ws_manager")
+            
+            # If test was successful
+            if test_result.get("success"):
                 generate_wiki = state.get("generate_wiki", True)  # Default to True if not specified
+                if ws_manager:
+                    await ws_manager.send_status(f"✅ 测试成功，{'准备生成Wiki' if generate_wiki else '工作流结束'}")
                 if generate_wiki:
                     return "wiki"
                 else:
                     return "end"
+            else:
+                # Test failed
+                error_msg = test_result.get("error", "测试失败")
+                if ws_manager:
+                    await ws_manager.send_status(f"❌ 测试失败，工作流结束")
+                    await ws_manager.send_error(f"测试失败: {error_msg}")
+                return "end"
+            
+            # Fallback to original logic if needed
+            result = await safe_should_continue_async(state)
             return result
 
         def safe_should_continue_with_wiki(state):
@@ -832,7 +922,7 @@ def create_langgraph_workflow() -> StateGraph:
 
         # Set conditional edges with the new decision function
         workflow.add_conditional_edges(
-            "build",
+            "test",
             safe_should_continue_with_wiki,
             {
                 "wiki": "wiki",  # Only go to wiki if generate_wiki is True
@@ -928,6 +1018,11 @@ def create_langgraph_workflow() -> StateGraph:
                     "category": "build",
                     "description": "使用生成的Dockerfile构建Docker镜像"
                 },
+                "test": {
+                    "label": "环境验证",
+                    "category": "test",
+                    "description": "测试构建的镜像环境与验证代码"
+                },
                 "wiki": {
                     "label": "生成Wiki",
                     "category": "documentation",
@@ -948,7 +1043,8 @@ def create_langgraph_workflow() -> StateGraph:
                 {"from": "clone", "to": "analyze"},
                 {"from": "analyze", "to": "generate"},
                 {"from": "generate", "to": "build"},
-                {"from": "build", "to": "wiki", "condition": "success"},
+                {"from": "build", "to": "test", "condition": "success"},
+                {"from": "test", "to": "wiki", "condition": "success"},
                 {"from": "build", "to": "reflect", "condition": "reflect"},
                 {"from": "reflect", "to": "improve"},
                 {"from": "improve", "to": "build", "condition": "retry"},
@@ -985,7 +1081,7 @@ def create_langgraph_workflow() -> StateGraph:
 
                         # Ensure result fields exist with default values
                         for result_field in ["clone_result", "analysis_result", "dockerfile_result", "build_result",
-                                             "wiki_result"]:
+                                             "test_result", "wiki_result"]:
                             if result_field not in state:
                                 state[result_field] = {}
 
