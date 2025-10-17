@@ -65,6 +65,7 @@ Please generate a Dockerfile that:
     - Handle platform-specific dependencies correctly
     - Install build dependencies before runtime dependencies where applicable
     - Properly configure the entrypoint and command for the application type
+14. IMPORTANT: Include a COPY command to copy the verification code file from the build context root directory to its specified install_path in the image. For example: COPY verification.py /app/verification.py
 
 Additionally, please generate a verification code snippet that demonstrates how to:
 
@@ -93,6 +94,7 @@ Additionally, please generate both verification code and execution commands:
 - Include comments explaining each test step and expected outcomes
 - The code should be designed to be copied to a well-known location in the image (e.g., /app/verification.py for Python)
 - Provide a descriptive code name for the verification file (e.g., verification.py, verify.sh)
+- IMPORTANT: The verification code file will be placed in the root directory of the build context, and the Dockerfile must include a COPY command to copy it to the specified install_path
 
 2. EXECUTION COMMAND:
 - Provide the exact command to execute the verification code in a Kubernetes pod
@@ -112,7 +114,7 @@ IMPORTANT: Respond ONLY with a valid JSON object. Do not include any explanation
 
 Required JSON format:
 {{
-  "dockerfile": "FROM python:3.9-slim\nWORKDIR /app\nCOPY . .\nRUN pip install -r requirements.txt\nEXPOSE 8000\nCMD [\"python\", \"app.py\"]",
+  "dockerfile": "FROM python:3.9-slim\nWORKDIR /app\nCOPY . .\nCOPY verification.py /app/verification.py\nRUN pip install -r requirements.txt\nEXPOSE 8000\nCMD [\"python\", \"app.py\"]",
   "base_image_reasoning": "Explanation of why you chose the base image, including why it will successfully build",
   "technology_stack": "Detected technologies and frameworks",
   "port_recommendations": ["8000", "80"],
