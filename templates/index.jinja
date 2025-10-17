@@ -239,6 +239,8 @@
             background-color: #000000;
             color: #00FF00; /* 默认绿色文本 */
             resize: vertical; /* 允许垂直调整大小 */
+            padding: 1rem; /* 添加内边距，解决顶边问题 */
+            margin: 0;
         }
         
         /* 可调整大小的容器 */
@@ -583,7 +585,7 @@
                     
                     <!-- Content Display Area -->
                     <div id="content-display-area" class="mt-6">
-                        <div class="border border-gray-200 rounded-lg p-4 bg-black resizable-container">
+                        <div class="border border-gray-200 rounded-lg overflow-hidden bg-black resizable-container">
                             <div id="content-display" class="font-mono text-green-400 text-sm whitespace-pre-wrap break-words"></div>
                             <div class="resize-handle"></div>
                         </div>
