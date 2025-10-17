@@ -33,6 +33,8 @@
             position: relative;
             overflow: hidden;
             background: #ffffff;
+            width: 100%;
+            max-width: 100%;
         }
         .monaco-container > div {
             width: 100%;
@@ -45,6 +47,8 @@
             position: relative;
             overflow: hidden;
             background: #ffffff;
+            width: 100%;
+            max-width: 100%;
         }
         .monaco-container-compose > div {
             width: 100%;
@@ -614,7 +618,7 @@
 
         <!-- Results (for non-streaming requests) -->
         {% if result %}
-        <div class="main-container mx-auto px-4 py-8">
+        <div class="main-container mx-auto px-4 py-8" style="width: 80%; max-width: 80%;">
             <div class="card p-6 space-y-6">
                 
                 <!-- Project Info -->
