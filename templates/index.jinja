@@ -1465,6 +1465,51 @@
             // 只使用映射后的节点ID
             const mappedNodeId = nodeMappings[nodeId] || nodeId;
             
+            // 特殊处理：如果test节点不在workflowNodeOrder中，手动添加它
+            if (mappedNodeId === 'test' && workflowNodeOrder.indexOf('test') === -1) {
+                console.log('Test node not found in workflowNodeOrder, adding it after build step');
+                const buildIndex = workflowNodeOrder.indexOf('build');
+                if (buildIndex !== -1) {
+                    // 在build节点后添加test节点
+                    workflowNodeOrder.splice(buildIndex + 1, 0, 'test');
+                } else {
+                    // 如果build节点也不存在，添加到数组末尾
+                    workflowNodeOrder.push('test');
+                }
+                
+                // 确保workflowNodes对象中有test节点信息
+                if (!workflowNodes['test']) {
+                    workflowNodes['test'] = { id: 'test', name: '环境验证' };
+                }
+                
+                // 创建test节点的DOM元素
+                const nodesContainer = document.getElementById('workflow-nodes');
+                if (nodesContainer) {
+                    const nodeElement = document.createElement('div');
+                    nodeElement.id = 'step-test';
+                    nodeElement.className = 'workflow-step step-waiting p-3 border rounded-lg';
+                    nodeElement.innerHTML = `
+                        <div class="flex items-center">
+                            <div class="step-number w-6 h-6 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center mr-2">
+                                ${workflowNodeOrder.indexOf('test') + 1}
+                            </div>
+                            <div class="step-content">
+                                <div class="step-title font-medium">环境验证</div>
+                                <div class="step-status text-xs text-gray-500">等待中</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // 找到build节点后插入test节点
+                    const buildElement = document.getElementById('step-build');
+                    if (buildElement && buildElement.nextSibling) {
+                        nodesContainer.insertBefore(nodeElement, buildElement.nextSibling);
+                    } else {
+                        nodesContainer.appendChild(nodeElement);
+                    }
+                }
+            }
+            
             // 确保在新节点开始时，所有之前的节点都被标记为完成
             completePreviousSteps(mappedNodeId);
             
