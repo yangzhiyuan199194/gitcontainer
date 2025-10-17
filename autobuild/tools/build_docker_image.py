@@ -65,10 +65,10 @@ async def build_docker_image(
                 if ws_manager:
                     await ws_manager.send_build_log(f"📝 验证代码已写入: {verification_code_name}\n")
 
-            # Copy project files to temp directory (excluding .git)
+            # Copy project files to temp directory (excluding .git and Dockerfile)
             if os.path.exists(local_path):
                 for item in os.listdir(local_path):
-                    if item != ".git":  # Skip .git directory
+                    if item != ".git" and item != "Dockerfile":  # Skip .git directory and Dockerfile
                         src = os.path.join(local_path, item)
                         dst = os.path.join(temp_dir, item)
                         if os.path.isdir(src):
