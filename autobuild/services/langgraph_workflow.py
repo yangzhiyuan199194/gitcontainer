@@ -498,7 +498,7 @@ async def test_env(state: LangGraphWorkflowState) -> Dict[str, Any]:
         # 确保测试完成后发送节点完成消息
         if ws_manager:
             await ws_manager.send_node_complete("test", {"success": processed_test_result.get("success", False)})
-            await ws_manager.send_status(f"✅ 环境验证完成，结果: {processed_test_result.get("success", False)}")
+            await ws_manager.send_status(f"✅ 环境验证完成，结果: {processed_test_result.get('success', False)}")
         
         return {"test_result": processed_test_result}
         
