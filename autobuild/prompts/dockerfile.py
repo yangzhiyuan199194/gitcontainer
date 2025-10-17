@@ -83,12 +83,28 @@ Each resource specification should include:
 3. Perform relevant API calls, CLI commands, or functional tests specific to this project
 4. Include proper error handling and meaningful output verification
 
-The verification code should be:
-- Highly specific to the cloned project's actual code and functionality
-- Executable directly within the generated Docker image
-- Focused on validating the application works as expected, not just that Docker is running
+Additionally, please generate both verification code and execution commands:
+
+1. VERIFICATION CODE:
+- The verification code should be generated as a separate file
+- It should be highly specific to the cloned project's actual code and functionality
+- Focused on validating the application works as expected
 - Tailored to the project's technology stack and architecture
 - Include comments explaining each test step and expected outcomes
+- The code should be designed to be copied to a well-known location in the image (e.g., /app/verification.py for Python)
+- Provide a descriptive code name for the verification file (e.g., verification.py, verify.sh)
+
+2. EXECUTION COMMAND:
+- Provide the exact command to execute the verification code in a Kubernetes pod
+- Ensure the command correctly references the verification code path
+- The command should be formatted as a list suitable for Kubernetes execution
+- The command should return a structured JSON output with the following fields:
+  * success: Boolean indicating if the test passed
+  * output: String containing the test output
+  * duration: Number indicating how long the test took (in seconds)
+  * details: Object containing any additional relevant test details
+
+Important: Ensure the verification code is properly installed in the image and the execution command correctly references it.
 
 If you detect multiple services or a complex architecture, provide a main Dockerfile for the primary service and suggest a docker-compose.yml structure.
 
@@ -103,11 +119,18 @@ Required JSON format:
   "additional_notes": "Any important setup or deployment notes, including potential build issues and how to avoid them",
   "docker_compose_suggestion": "Optional docker-compose.yml content if multiple services detected",
   "verification_code": {{
-    "language": "bash",
-    "code": "#!/bin/bash\n# Function to test application functionality\ntest_application_functionality() {{\n  # Check if application files exist\n  if [ ! -f 'main.py' ]; then\n    echo \"Error: Application files not found\"\n    return 1\n  fi\n  \n  echo \"Testing core application functionality...\"\n  \n  # Example 1: Run application entry point\n  python -m application.test --verify-installation\n  \n  # Example 2: Run built-in tests if available\n  if [ -d 'tests' ]; then\n    python -m pytest tests/\n  fi\n  \n  echo \"Application tests completed\"\n}}\n\ntest_application_functionality",
-    "description": "Functionality test script for the application",
-    "dependencies": ["python"]
+    "language": "python",
+    "code": "#!/usr/bin/env python3\n\"\"\"\nVerification script for the application\nThis script will be built into the Docker image and executed in Kubernetes\n\"\"\"\nimport json\nimport time\nimport sys\n\n# Record start time\nstart_time = time.time()\n\nresult = {{{{\n    'success': False,\n    'output': '',\n    'duration': 0,\n    'details': {{}}\n}}}}\n\ntry:\n    # Add application-specific verification code here\n    # Example for a Python application:\n    result['output'] = 'Testing application core functionality...\n'\n    \n    # Check if application files exist\n    import os\n    if os.path.exists('main.py'):\n        result['output'] += '✅ Application entry point found\n'\n        result['details']['main_file_exists'] = True\n    else:\n        result['output'] += '❌ Application entry point not found\n'\n        result['details']['main_file_exists'] = False\n    \n    # Add more application-specific tests here\n    \n    # For demonstration purposes - mark as successful\n    result['success'] = True\n    result['output'] += '✅ All tests completed successfully'\n    \nexcept Exception as e:\n    result['output'] += '❌ Error during verification: ' + str(e) + '\n'\n    result['details']['error'] = str(e)\n    result['success'] = False\nfinally:\n    # Calculate duration\n    result['duration'] = time.time() - start_time\n    \n    # Print JSON result to stdout\n    print(json.dumps(result, indent=2))\n    \n    # Exit with appropriate status code\n    sys.exit(0 if result['success'] else 1)\n",
+    "description": "Python verification script that returns structured JSON output",
+    "dependencies": ["python3"],
+    "install_path": "/app/verification.py",
+    "code_name": "verification.py"
   }},
+  "execution_command": [
+    "/bin/sh", 
+    "-c", 
+    "python3 /app/verification.py"
+  ],
   "resource_requirements": {{
     "minimal": {{
       "cpu_cores": 1,

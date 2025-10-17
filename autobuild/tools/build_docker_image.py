@@ -22,7 +22,9 @@ async def build_docker_image(
         dockerfile_content: str,
         project_name: str,
         local_path: str,
-        ws_manager: Optional[Any] = None
+        ws_manager: Optional[Any] = None,
+        verification_code: Optional[str] = None,
+        verification_code_name: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Build a Docker image from the provided Dockerfile content.
@@ -51,6 +53,17 @@ async def build_docker_image(
             dockerfile_path = temp_path / "Dockerfile"
             with open(dockerfile_path, "w", encoding="utf-8") as f:
                 f.write(dockerfile_content)
+                
+            # Write verification code if provided
+            if verification_code and verification_code_name:
+                verification_path = temp_path / verification_code_name
+                with open(verification_path, "w", encoding="utf-8") as f:
+                    f.write(verification_code)
+                # Make the verification script executable if it's a shell script
+                if verification_code_name.endswith('.sh'):
+                    os.chmod(verification_path, 0o755)
+                if ws_manager:
+                    await ws_manager.send_build_log(f"📝 验证代码已写入: {verification_code_name}\n")
 
             # Copy project files to temp directory (excluding .git)
             if os.path.exists(local_path):

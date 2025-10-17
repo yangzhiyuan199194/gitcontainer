@@ -400,6 +400,9 @@ async def run_test_in_k8s(image: str, test_command: Optional[list] = None,
         if not delete_result["success"]:
             logger.warning(f"Failed to delete pod {pod_name}: {delete_result['error']}")
         
+        # Combine logs into output
+        output = "\n".join(log_lines)
+        
         # Return test result
         if completion_result["success"]:
             if ws_manager:
@@ -407,7 +410,8 @@ async def run_test_in_k8s(image: str, test_command: Optional[list] = None,
             return {
                 "success": True,
                 "pod_name": pod_name,
-                "logs": "\n".join(log_lines),
+                "logs": output,
+                "output": output,
                 "exit_code": completion_result.get("exit_code", 0)
             }
         else:
@@ -418,7 +422,8 @@ async def run_test_in_k8s(image: str, test_command: Optional[list] = None,
                 "success": False,
                 "error": error_msg,
                 "pod_name": pod_name,
-                "logs": "\n".join(log_lines),
+                "logs": output,
+                "output": output,
                 "exit_code": completion_result.get("exit_code", 1)
             }
     
