@@ -39,37 +39,64 @@ DIRECTORY STRUCTURE:
 SOURCE CODE CONTEXT:
 {truncated_content}{additional_instructions_section}
 
-Please generate a Dockerfile that:
+Please generate a Dockerfile that follows these requirements:
+
+# DOCKERFILE REQUIREMENTS
 1. If there is already Dockerfile information in the project, give priority to referring to this information
-2. Uses appropriate base images for the detected technology stack
-3. Includes proper dependency management with attention to version compatibility
-4. Sets up the correct working directory structure
-5. Exposes necessary ports based on the application type
-6. Includes health checks where appropriate for the application type
-7. If the user does not explicitly specify the Dockerfile and the project relies on the python environment, conda should be used first to build the user-dependent environment，avoid using the default Anaconda channel that requires a ToS and instead use the conda suggests explicitly specifying --override-channels -c conda-forge
-8. Use the base image pre-installed devel version with CUDA Toolkit first, it is recommended to use cuda 12.4 or above. To ensure compatibility, please run pip install... Previously, explicitly install numpy 1.x version by running pip install 'numpy<2'
-9. If you need to install DeepSpeed, use the environment variable: DS_BUILD_CCL=0 to explicitly disable oneCCL support
-10. Follows Docker best practices:
-   - Use multi-stage builds when beneficial to reduce image size
-   - Combine related RUN commands to minimize layers
-   - Properly handle package manager caches (e.g., apt-get clean, rm -rf /var/lib/apt/lists/*)
-   - Use COPY instead of ADD unless specifically needed
-   - Make sure the file you want to copy exists in the corresponding directory
-11. Handles environment variables and configuration appropriately
-12. Ensures all commands are compatible with the chosen base image
-13. Avoids common build errors:
-    - Always use specific versions for base images (avoid 'latest')
-    - Use a definite existing base image and do not fabricate non-existent images at will
-    - Properly escape special characters in commands
-    - Ensure all required files are copied or created before being used
-    - Handle platform-specific dependencies correctly
-    - Install build dependencies before runtime dependencies where applicable
-    - Properly configure the entrypoint and command for the application type
-14. IMPORTANT: Include a COPY command to copy the verification code file from the build context root directory to its specified install_path in the image. For example: COPY verification.py /app/verification.py
+2. Use appropriate base images for the detected technology stack
+3. Include proper dependency management with attention to version compatibility
+4. Set up the correct working directory structure
+5. Expose necessary ports based on the application type
+6. Include health checks where appropriate for the application type
 
-Additionally, please generate a verification code snippet that demonstrates how to:
+# TECHNICAL SPECIFICATIONS
+7. For Python projects, use conda first to build the user-dependent environment, explicitly specifying --override-channels -c conda-forge to avoid the default Anaconda channel
+8. For GPU-accelerated applications, use base images pre-installed with CUDA Toolkit (recommended: CUDA 12.4 or above)
+9. For compatibility, explicitly install numpy 1.x version before other dependencies: pip install 'numpy<2'
+10. When installing DeepSpeed, use environment variable: DS_BUILD_CCL=0 to disable oneCCL support
 
-Also, please specify the resource requirements for running this application in the container:
+# DOCKER BEST PRACTICES
+11. Use multi-stage builds when beneficial to reduce image size
+12. Combine related RUN commands to minimize layers
+13. Properly handle package manager caches (e.g., apt-get clean, rm -rf /var/lib/apt/lists/*)
+14. Use COPY instead of ADD unless specifically needed
+15. Make sure files you want to copy exist in the corresponding directory
+16. Handle environment variables and configuration appropriately
+17. Ensure all commands are compatible with the chosen base image
+
+# ERROR PREVENTION
+18. Always use specific versions for base images (avoid 'latest')
+19. Use definite existing base images only; do not fabricate non-existent images
+20. Properly escape special characters in commands
+21. Ensure all required files are copied or created before being used
+22. Handle platform-specific dependencies correctly
+23. Install build dependencies before runtime dependencies where applicable
+24. Properly configure the entrypoint and command for the application type
+
+# VERIFICATION CODE INTEGRATION
+25. IMPORTANT: Include a COPY command to copy the verification code file from the build context root directory to its specified install_path in the image. For example: COPY verification.py /app/verification.py
+
+# VERIFICATION CODE REQUIREMENTS
+1. The verification code should be generated as a separate file
+2. It should be highly specific to the cloned project's actual code and functionality
+3. Focus on validating the application works as expected
+4. Be tailored to the project's technology stack and architecture
+5. Include comments explaining each test step and expected outcomes
+6. Provide a descriptive code name for the verification file (e.g., verification.py, verify.sh)
+7. The verification code will be placed in the root directory of the build context, and the Dockerfile must include a COPY command to copy it to the specified install_path
+
+# EXECUTION COMMAND REQUIREMENTS
+1. Provide the exact command to execute the verification code in a Kubernetes pod
+2. Ensure the command correctly references the verification code path
+3. Format the command as a list suitable for Kubernetes execution
+4. The command should return a structured JSON output with these fields:
+   * success: Boolean indicating if the test passed
+   * output: String containing the test output
+   * duration: Number indicating how long the test took (in seconds)
+   * details: Object containing any additional relevant test details
+
+# RESOURCE REQUIREMENTS
+Please specify the resource requirements for running this application in the container:
 1. Minimal resource specifications required for basic functionality
 2. Recommended resource specifications for optimal performance
 
@@ -78,39 +105,11 @@ Each resource specification should include:
 - Memory required (in GB)
 - GPU count required (0 if not needed)
 
-
-1. Test the core functionality of the application within the Docker container
-2. Verify that the application's key features are working correctly
-3. Perform relevant API calls, CLI commands, or functional tests specific to this project
-4. Include proper error handling and meaningful output verification
-
-Additionally, please generate both verification code and execution commands:
-
-1. VERIFICATION CODE:
-- The verification code should be generated as a separate file
-- It should be highly specific to the cloned project's actual code and functionality
-- Focused on validating the application works as expected
-- Tailored to the project's technology stack and architecture
-- Include comments explaining each test step and expected outcomes
-- The code should be designed to be copied to a well-known location in the image (e.g., /app/verification.py for Python)
-- Provide a descriptive code name for the verification file (e.g., verification.py, verify.sh)
-- IMPORTANT: The verification code file will be placed in the root directory of the build context, and the Dockerfile must include a COPY command to copy it to the specified install_path
-
-2. EXECUTION COMMAND:
-- Provide the exact command to execute the verification code in a Kubernetes pod
-- Ensure the command correctly references the verification code path
-- The command should be formatted as a list suitable for Kubernetes execution
-- The command should return a structured JSON output with the following fields:
-  * success: Boolean indicating if the test passed
-  * output: String containing the test output
-  * duration: Number indicating how long the test took (in seconds)
-  * details: Object containing any additional relevant test details
-
-Important: Ensure the verification code is properly installed in the image and the execution command correctly references it.
-
+# COMPLEX ARCHITECTURE HANDLING
 If you detect multiple services or a complex architecture, provide a main Dockerfile for the primary service and suggest a docker-compose.yml structure.
 
-IMPORTANT: Respond ONLY with a valid JSON object. Do not include any explanations, or code blocks. The response must be parseable JSON.
+# OUTPUT FORMAT
+IMPORTANT: Respond ONLY with a valid JSON object. Do not include any explanations or code blocks. The response must be parseable JSON.
 
 Required JSON format:
 {{
