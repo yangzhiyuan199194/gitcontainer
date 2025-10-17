@@ -406,6 +406,8 @@ async def test_env(state: LangGraphWorkflowState) -> Dict[str, Any]:
             error_msg = "无法进行测试：镜像构建失败"
             if ws_manager:
                 await ws_manager.send_error(error_msg)
+                # 明确发送节点完成消息
+                await ws_manager.send_node_complete("test", {"success": False, "error": error_msg})
             return {"test_result": {"success": False, "error": error_msg}}
         
         # Get the built image from build result
@@ -414,6 +416,8 @@ async def test_env(state: LangGraphWorkflowState) -> Dict[str, Any]:
             error_msg = "无法进行测试：找不到构建的镜像"
             if ws_manager:
                 await ws_manager.send_error(error_msg)
+                # 明确发送节点完成消息
+                await ws_manager.send_node_complete("test", {"success": False, "error": error_msg})
             return {"test_result": {"success": False, "error": error_msg}}
         
         # Import k8s operations
@@ -449,7 +453,6 @@ async def test_env(state: LangGraphWorkflowState) -> Dict[str, Any]:
             ws_manager=ws_manager
         )
         
-        # Update node status and return result
         # Process the test_result to extract structured data from JSON output
         processed_test_result = {}
         
@@ -492,13 +495,20 @@ async def test_env(state: LangGraphWorkflowState) -> Dict[str, Any]:
                         await ws_manager.send_build_log(f"⚠️  无法解析JSON输出: {str(e)}\n")
                     # Keep original test_result if parsing fails
         
+        # 确保测试完成后发送节点完成消息
+        if ws_manager:
+            await ws_manager.send_node_complete("test", {"success": processed_test_result.get("success", False)})
+            await ws_manager.send_status(f"✅ 环境验证完成，结果: {processed_test_result.get("success", False)}")
+        
         return {"test_result": processed_test_result}
         
     except Exception as e:
-        error_msg = f"测试环境执行时出错: {str(e)}"
+        error_msg = f"环境验证失败: {str(e)}"
         logger.error(error_msg, exc_info=True)
         if ws_manager:
             await ws_manager.send_error(error_msg)
+            # 明确发送节点完成消息
+            await ws_manager.send_node_complete("test", {"success": False, "error": error_msg})
         return {"test_result": {"success": False, "error": error_msg}}
 
 
